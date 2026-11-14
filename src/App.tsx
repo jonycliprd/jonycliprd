@@ -958,3 +958,402 @@ export function App() {
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {projects.map((folder) => (
+<div
+                  key={folder.id}
+                  className="rounded-3xl border border-white/10 bg-[#110c24] overflow-hidden flex flex-col justify-between shadow-xl"
+                >
+                  <div
+                    onClick={() => {
+                      setActiveProjectId(folder.id);
+                      setActiveTab('studio');
+                    }}
+                    className="cursor-pointer group"
+                  >
+                    <div className="relative h-44 bg-black">
+                      {folder.thumbnailUrl ? (
+                        <img
+                          src={folder.thumbnailUrl}
+                          alt={folder.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-purple-950/30">
+                          <Film className="w-12 h-12 text-fuchsia-400/50" />
+                        </div>
+                      )}
+                      <span className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/80 text-xs font-bold text-fuchsia-300 flex items-center gap-1.5">
+                        <Folder className="w-3.5 h-3.5" /> {folder.clips.length} clips guardados
+                      </span>
+                    </div>
+
+                    <div className="p-4">
+                      <h3 className="font-bold text-base text-white group-hover:text-fuchsia-300 transition line-clamp-1">
+                        {folder.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {folder.channel} • {new Date(folder.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="px-4 pb-4 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => {
+                        setActiveProjectId(folder.id);
+                        setActiveTab('studio');
+                      }}
+                      className="flex-1 py-2 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-xs font-bold text-center"
+                    >
+                      Abrir Carpeta
+                    </button>
+                    <button
+                      onClick={() => deleteProjectFolder(folder.id)}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300"
+                      title="Eliminar carpeta"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+      )}
+
+      {activeTab === 'plans' && (
+        <main className="max-w-5xl mx-auto px-4 py-12">
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-black">Planes JONY CLIP RD Studio</h1>
+            <p className="text-sm text-slate-400 mt-2">
+              Recorte vertical 9:16 con IA, carpetas ilimitadas y editor de subtítulos estilo CapCut.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { name: 'Prueba Gratis', price: '$0', desc: '10 cortes de prueba con subtítulos IA', btn: 'Activo' },
+              { name: 'Creador Pro', price: '$15/mes', desc: 'Cortes ilimitados + todas las plantillas CapCut', btn: 'Elegir Pro' },
+              { name: 'Dueño VIP', price: 'Acceso Maestro', desc: 'Control total sin límites ni marca de agua', btn: 'Activar Clave' }
+            ].map((plan, idx) => (
+              <div key={idx} className="rounded-3xl border border-white/10 bg-[#110c24] p-6 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-lg font-black text-fuchsia-300">{plan.name}</h3>
+                  <p className="text-3xl font-black my-3">{plan.price}</p>
+                  <p className="text-xs text-slate-400">{plan.desc}</p>
+                </div>
+                <button
+                  onClick={() => idx === 2 && setShowOwnerModal(true)}
+                  className="mt-6 w-full py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-xs font-bold"
+                >
+                  {plan.btn}
+                </button>
+              </div>
+            ))}
+          </div>
+        </main>
+      )}
+
+      {editingClip && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
+          <div className="w-full max-w-6xl max-h-[92vh] rounded-3xl border border-fuchsia-500/40 bg-[#0d091f] overflow-hidden flex flex-col shadow-2xl">
+            <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between bg-[#140e2e]">
+              <div className="flex items-center gap-2.5">
+                <span className="px-2.5 py-1 rounded-lg bg-fuchsia-600 text-xs font-black">CAPCUT STUDIO</span>
+                <h2 className="font-bold text-sm sm:text-base line-clamp-1">{editingClip.title}</h2>
+              </div>
+              <button
+                onClick={() => setEditingClip(null)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto grid lg:grid-cols-12 gap-6 p-5">
+              <div className="lg:col-span-5 flex flex-col items-center justify-center bg-black/60 rounded-2xl p-4 border border-white/10">
+                <div className="relative w-full max-w-[270px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-fuchsia-500/40 shadow-2xl">
+                  <video
+                    ref={editorVideoRef}
+                    src={editingClip.rawVideoUrl || editingClip.downloadUrl}
+                    autoPlay
+                    loop
+                    playsInline
+                    onTimeUpdate={(e) => setCurrentPreviewTime(e.currentTarget.currentTime)}
+                    className="w-full h-full object-cover"
+                  />
+
+                  {editStyleId !== 'none' && activeLiveSubtitle && (
+                    <div
+                      style={{ bottom: `${Math.max(8, Math.min(75, Math.round((editMarginV / 1280) * 100)))}%` }}
+                      className="pointer-events-none absolute left-3 right-3 text-center px-2"
+                    >
+                      <span
+                        style={{
+                          fontSize: `${Math.max(13, Math.round(editFontSize * 0.42))}px`,
+                          color: activeSwatch.hex
+                        }}
+                        className={`inline-block leading-tight uppercase font-black ${
+                          editStyleId === 'karaoke_box'
+                            ? 'bg-black/85 px-2.5 py-1 rounded-md'
+                            : 'drop-shadow-[0_3px_3px_rgba(0,0,0,1)]'
+                        }`}
+                      >
+                        {activeLiveSubtitle.text}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 mt-3">
+                  <button
+                    onClick={() => {
+                      const v = editorVideoRef.current;
+                      if (!v) return;
+                      if (v.paused) {
+                        v.play();
+                        setIsPreviewPlaying(true);
+                      } else {
+                        v.pause();
+                        setIsPreviewPlaying(false);
+                      }
+                    }}
+                    className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    {isPreviewPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    <span>{isPreviewPlaying ? 'Pausar' : 'Reproducir'}</span>
+                  </button>
+                  <span className="text-xs font-mono text-slate-400">
+                    {currentPreviewTime.toFixed(1)}s / {editingClip.duration}s
+                  </span>
+                </div>
+              </div>
+
+              <div className="lg:col-span-7 space-y-5">
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wider text-fuchsia-300 flex items-center gap-1.5 mb-2.5">
+                    <Sparkles className="w-4 h-4" /> 1. Plantilla de Subtítulos (Estilo CapCut)
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {SUBTITLE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => {
+                          setEditStyleId(preset.id);
+                          setEditColorAss(preset.defaultColorAss);
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition ${
+                          editStyleId === preset.id
+                            ? 'border-fuchsia-400 bg-fuchsia-500/20'
+                            : 'border-white/10 bg-white/5 hover:border-white/25'
+                        }`}
+                      >
+                        <div className="text-xs font-bold">{preset.name}</div>
+                        <div className={`text-[10px] mt-1 truncate ${preset.previewClass}`}>{preset.previewText}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-3 gap-3 bg-white/[0.03] border border-white/10 rounded-2xl p-3.5">
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-300 block mb-2">Color del Texto</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {COLOR_SWATCHES.map((sw) => (
+                        <button
+                          key={sw.ass}
+                          onClick={() => setEditColorAss(sw.ass)}
+                          style={{ backgroundColor: sw.hex }}
+                          title={sw.label}
+                          className={`w-6 h-6 rounded-full border-2 transition ${
+                            editColorAss === sw.ass ? 'border-white scale-110' : 'border-black/50'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-1">
+                      <span>Tamaño Letra</span>
+                      <span className="text-fuchsia-300">{editFontSize}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={28}
+                      max={68}
+                      value={editFontSize}
+                      onChange={(e) => setEditFontSize(Number(e.target.value))}
+                      className="w-full accent-fuchsia-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[11px] font-bold text-slate-300 mb-1">
+                      <span>Altura en Pantalla</span>
+                      <span className="text-cyan-300">{Math.round((editMarginV / 1280) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={80}
+                      max={680}
+                      value={editMarginV}
+                      onChange={(e) => setEditMarginV(Number(e.target.value))}
+                      className="w-full accent-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-black uppercase tracking-wider text-cyan-300">
+                      2. Edita cada frase del subtítulo
+                    </label>
+                    <button
+                      onClick={() => {
+                        const lastEnd = editSubtitles[editSubtitles.length - 1]?.end || 0;
+                        setEditSubtitles((prev) => [
+                          ...prev,
+                          {
+                            id: String(Date.now()),
+                            start: Number(lastEnd.toFixed(1)),
+                            end: Number(Math.min(editingClip.duration, lastEnd + 3).toFixed(1)),
+                            text: 'NUEVA LÍNEA DE TEXTO'
+                          }
+                        ]);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-xs font-bold flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Añadir línea
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {editSubtitles.map((line, index) => (
+                      <div
+                        key={line.id}
+                        className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl p-2"
+                      >
+                        <span className="text-[11px] font-mono text-slate-400 px-1.5 shrink-0">
+                          {line.start.toFixed(1)}s–{line.end.toFixed(1)}s
+                        </span>
+                        <input
+                          type="text"
+                          value={line.text}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditSubtitles((prev) =>
+                              prev.map((item, idx) => (idx === index ? { ...item, text: val } : item))
+                            );
+                          }}
+                          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-fuchsia-400"
+                        />
+                        <button
+                          onClick={() =>
+                            setEditSubtitles((prev) => prev.filter((_, idx) => idx !== index))
+                          }
+                          className="p-1.5 text-slate-400 hover:text-rose-400"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center justify-end gap-3">
+                  <button
+                    onClick={() => setEditingClip(null)}
+                    className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold"
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    onClick={handleSaveCapCutRender}
+                    disabled={isRenderingEdit}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 text-xs sm:text-sm font-black flex items-center gap-2 shadow-xl shadow-fuchsia-600/30 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>
+                      {isRenderingEdit
+                        ? 'Renderizando subtítulos en MP4...'
+                        : 'Aplicar Estilo CapCut y Descargar MP4'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isProcessing && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl border border-fuchsia-500/40 bg-[#120c29] p-7 text-center space-y-5 shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-fuchsia-600 to-indigo-600 flex items-center justify-center mx-auto animate-pulse">
+              <Sparkles className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black">Creando Carpeta y Clips Verticales 9:16</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Extrayendo portada con cara, transcribiendo audio y aplicando subtítulos estilo CapCut...
+              </p>
+            </div>
+            <div className="space-y-2 text-left text-xs">
+              {[
+                '1. Descargando video y extrayendo miniatura real...',
+                '2. Transcribiendo voz con Whisper IA...',
+                '3. Detectando momentos más virales...',
+                '4. Recortando en 9:16 y quemando subtítulos CapCut...'
+              ].map((label, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2.5 rounded-xl border ${
+                    processStep >= idx + 1
+                      ? 'border-fuchsia-500/50 bg-fuchsia-500/15 text-white font-semibold'
+                      : 'border-white/5 bg-white/[0.02] text-slate-500'
+                  }`}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOwnerModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={handleActivateOwner}
+            className="w-full max-w-sm rounded-3xl border border-amber-400/40 bg-[#120c29] p-6 space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-amber-300 flex items-center gap-2">
+                <KeyRound className="w-5 h-5" /> Acceso Dueño VIP
+              </h3>
+              <button type="button" onClick={() => setShowOwnerModal(false)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <input
+              type="password"
+              value={ownerPassInput}
+              onChange={(e) => setOwnerPassInput(e.target.value)}
+              placeholder="Ingresa tu clave maestra..."
+              className="w-full px-4 py-2.5 rounded-xl bg-black/50 border border-white/15 text-sm focus:outline-none focus:border-amber-400"
+            />
+            {ownerError && <p className="text-xs text-rose-400">{ownerError}</p>}
+            <button
+              type="submit"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black text-xs"
+            >
+              Activar Modo Ilimitado
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
