@@ -38,8 +38,9 @@ interface SubtitleLine {
 }
 
 interface ClipItem {
-  id: number;
+  id: string | number;
   title: string;
+  hookTitle?: string;
   score: number;
   start: number;
   end: number;
@@ -88,7 +89,7 @@ const SUBTITLE_PRESETS = [
     defaultColorAss: '&H00FFF200'
   },
   {
-    id: 'karaoke_box',
+    id: 'capcut',
     name: 'Caja CapCut',
     badge: 'Lectura Clara',
     previewText: 'SUBTÍTULO CON FONDO',
@@ -149,6 +150,8 @@ export function App() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [processStep, setProcessStep] = useState(0);
+  const [processPercent, setProcessPercent] = useState<number>(0);
+  const [processStageText, setProcessStageText] = useState<string>('Iniciando cola de procesamiento...');
   const [errorMsg, setErrorMsg] = useState('');
 
   const [projects, setProjects] = useState<ProjectFolder[]>(() => {
@@ -216,6 +219,38 @@ export function App() {
     }
   };
 
+  const pollJobUntilDone = async (baseApi: string, jobId: string): Promise<any> => {
+    const maxAttempts = 360; // Hasta 15 minutos (360 x 2.5s) sin corte HTTP 499
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+
+      const statusRes = await fetch(`${baseApi}/api/jobs/${encodeURIComponent(jobId)}`);
+      const statusData = await statusRes.json();
+
+      if (statusData.status === 'failed' || (!statusRes.ok && statusData.error)) {
+        throw new Error(statusData.error || 'Error procesando el video en el servidor.');
+      }
+
+      const pct = Number(statusData.progress) || 5;
+      setProcessPercent(pct);
+      if (statusData.stage) {
+        setProcessStageText(statusData.stage);
+      }
+
+      if (pct < 30) setProcessStep(1);
+      else if (pct < 55) setProcessStep(2);
+      else if (pct < 65) setProcessStep(3);
+      else setProcessStep(4);
+
+      if (statusData.status === 'completed') {
+        setProcessPercent(100);
+        setProcessStep(4);
+        return statusData;
+      }
+    }
+    throw new Error('El video tardó demasiado en procesarse. Intenta con un fragmento más corto.');
+  };
+
   const handleGenerateClips = async () => {
     setErrorMsg('');
 
@@ -236,15 +271,15 @@ export function App() {
 
     setIsProcessing(true);
     setProcessStep(1);
+    setProcessPercent(5);
+    setProcessStageText('Enviando video a la cola profesional BullMQ...');
 
-    const stepTimer1 = setTimeout(() => setProcessStep(2), 4500);
-    const stepTimer2 = setTimeout(() => setProcessStep(3), 11000);
-    const stepTimer3 = setTimeout(() => setProcessStep(4), 19000);
+    const baseApi = API_BASE.replace(/\/$/, '');
 
     try {
       const formData = new FormData();
-      formData.append('duration', String(clipDuration));
-      formData.append('count', String(clipCount));
+      formData.append('clipDuration', String(clipDuration));
+      formData.append('clipCount', String(clipCount));
       formData.append('subtitleStyle', selectedPreset);
 
       if (inputMode === 'upload' && selectedFile) {
@@ -253,32 +288,53 @@ export function App() {
         formData.append('url', videoUrl.trim());
       }
 
-      const response = await fetch(`${API_BASE.replace(/\/$/, '')}/api/process`, {
+      const enqueueRes = await fetch(`${baseApi}/api/process`, {
         method: 'POST',
         body: formData
       });
 
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.details || data.error || 'No se pudo procesar el video en Railway.');
+      const enqueueData = await enqueueRes.json();
+      if (!enqueueRes.ok || (!enqueueData.ok && !enqueueData.success)) {
+        throw new Error(enqueueData.details || enqueueData.error || 'No se pudo iniciar el trabajo en Railway.');
       }
+
+      const data = enqueueData.jobId
+        ? await pollJobUntilDone(baseApi, enqueueData.jobId)
+        : enqueueData;
+
+      const normalizedClips: ClipItem[] = (data.clips || []).map((c: any, idx: number) => ({
+        id: c.id || `${Date.now()}_${idx + 1}`,
+        title: c.title || `Clip Viral #${idx + 1}`,
+        hookTitle: c.hookTitle || '',
+        score: Number(c.score) || Math.max(85, 99 - idx),
+        start: Number(c.start) || 0,
+        end: Number(c.end) || clipDuration,
+        duration: Number(c.duration) || clipDuration,
+        subtitleStyle: c.subtitleStyle || selectedPreset,
+        subtitles: Array.isArray(c.subtitles) ? c.subtitles : [],
+        thumbnailUrl: c.thumbnailUrl || data.project?.thumbnail || '',
+        rawVideoUrl: c.rawVideoUrl || c.videoUrl || c.downloadUrl || '',
+        downloadUrl: c.videoUrl || c.downloadUrl || ''
+      }));
 
       const newFolder: ProjectFolder = {
         id: data.project?.id || Date.now().toString(),
         title: data.project?.title || 'Proyecto Viral • JONY CLIP RD',
         channel: data.project?.channel || 'JONY CLIP RD Studio',
         sourceUrl: data.project?.sourceUrl || videoUrl.trim(),
-        thumbnailUrl: data.project?.thumbnailUrl || data.clips?.[0]?.thumbnailUrl || '',
-        totalDuration: data.project?.totalDuration || clipDuration * clipCount,
+        thumbnailUrl: data.project?.thumbnail || data.project?.thumbnailUrl || normalizedClips[0]?.thumbnailUrl || '',
+        totalDuration:
+          data.project?.totalDuration ||
+          normalizedClips.reduce((acc, item) => acc + (item.duration || clipDuration), 0),
         createdAt: data.project?.createdAt || new Date().toISOString(),
-        clips: data.clips || []
+        clips: normalizedClips
       };
 
       setProjects((prev) => [newFolder, ...prev]);
       setActiveProjectId(newFolder.id);
 
       if (!isOwner) {
-        const nextUsed = trialUsed + (data.clips?.length || 1);
+        const nextUsed = trialUsed + (normalizedClips.length || 1);
         setTrialUsed(nextUsed);
         localStorage.setItem(STORAGE_TRIAL_KEY, String(nextUsed));
       }
@@ -287,11 +343,9 @@ export function App() {
     } catch (err: any) {
       setErrorMsg(`Error del servidor: ${err.message || 'No se pudo conectar con Railway.'}`);
     } finally {
-      clearTimeout(stepTimer1);
-      clearTimeout(stepTimer2);
-      clearTimeout(stepTimer3);
       setIsProcessing(false);
       setProcessStep(0);
+      setProcessPercent(0);
     }
   };
 
@@ -309,7 +363,7 @@ export function App() {
       setEditSubtitles(clip.subtitles.map((s) => ({ ...s })));
     } else {
       setEditSubtitles([
-        { id: '1', start: 0, end: Math.min(4, clip.duration), text: '¡MIRA LO QUE ACABA DE PASAR AQUÍ!' },
+        { id: '1', start: 0, end: Math.min(4, clip.duration), text: clip.hookTitle || '¡MIRA LO QUE ACABA DE PASAR AQUÍ!' },
         {
           id: '2',
           start: Math.min(4, clip.duration),
@@ -340,16 +394,23 @@ export function App() {
         })
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        triggerDirectDownload(editingClip.downloadUrl, `${editingClip.title}.mp4`);
+        return;
+      }
+
       const data = await response.json();
-      if (!response.ok || !data.success) {
+      if (!response.ok || (!data.ok && !data.success)) {
         throw new Error(data.details || data.error || 'Error renderizando subtítulos.');
       }
 
+      const finalUrl = data.videoUrl || data.downloadUrl || editingClip.downloadUrl;
       const updatedClip: ClipItem = {
         ...editingClip,
         subtitleStyle: editStyleId,
         subtitles: editSubtitles,
-        downloadUrl: data.downloadUrl
+        downloadUrl: finalUrl
       };
 
       setProjects((prev) =>
@@ -363,7 +424,7 @@ export function App() {
         )
       );
       setEditingClip(updatedClip);
-      triggerDirectDownload(data.downloadUrl, `${updatedClip.title}.mp4`);
+      triggerDirectDownload(finalUrl, `${updatedClip.title}.mp4`);
     } catch (err: any) {
       alert(`No se pudo aplicar el estilo: ${err.message}`);
     } finally {
@@ -593,7 +654,7 @@ export function App() {
                   <input
                     type="range"
                     min={1}
-                    max={15}
+                    max={10}
                     value={clipCount}
                     onChange={(e) => setClipCount(Number(e.target.value))}
                     className="w-full accent-fuchsia-500 cursor-pointer"
@@ -666,7 +727,7 @@ export function App() {
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 px-1">
                     <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <Lock className="w-3 h-3" /> Motor IA + FFmpeg Activo • Portadas Reales + Subtítulos CapCut
+                      <Lock className="w-3 h-3" /> Cola BullMQ + FFmpeg Activo • Sin límite de tiempo HTTP
                     </span>
                   </div>
                 </div>
@@ -958,7 +1019,7 @@ export function App() {
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {projects.map((folder) => (
-<div
+                <div
                   key={folder.id}
                   className="rounded-3xl border border-white/10 bg-[#110c24] overflow-hidden flex flex-col justify-between shadow-xl"
                 >
@@ -1093,7 +1154,7 @@ export function App() {
                           color: activeSwatch.hex
                         }}
                         className={`inline-block leading-tight uppercase font-black ${
-                          editStyleId === 'karaoke_box'
+                          editStyleId === 'capcut'
                             ? 'bg-black/85 px-2.5 py-1 rounded-md'
                             : 'drop-shadow-[0_3px_3px_rgba(0,0,0,1)]'
                         }`}
@@ -1276,7 +1337,7 @@ export function App() {
                     <span>
                       {isRenderingEdit
                         ? 'Renderizando subtítulos en MP4...'
-                        : 'Aplicar Estilo CapCut y Descargar MP4'}
+                        : 'Descargar MP4 Final'}
                     </span>
                   </button>
                 </div>
@@ -1294,10 +1355,18 @@ export function App() {
             </div>
             <div>
               <h3 className="text-lg font-black">Creando Carpeta y Clips Verticales 9:16</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Extrayendo portada con cara, transcribiendo audio y aplicando subtítulos estilo CapCut...
+              <p className="text-xs text-fuchsia-300 font-semibold mt-1">
+                {processStageText} ({processPercent}%)
               </p>
             </div>
+
+            <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                style={{ width: `${Math.max(5, Math.min(100, processPercent))}%` }}
+                className="h-full bg-gradient-to-r from-fuchsia-500 via-purple-500 to-cyan-400 transition-all duration-500"
+              />
+            </div>
+
             <div className="space-y-2 text-left text-xs">
               {[
                 '1. Descargando video y extrayendo miniatura real...',
