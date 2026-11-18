@@ -27,18 +27,30 @@ import {
   ExternalLink,
   RefreshCw,
   ChevronLeft,
-  Wand2
+  Wand2,
+  Smile,
+  Palette
 } from 'lucide-react';
+
+interface WordOverride {
+  colorAss?: string;
+  hex?: string;
+  emoji?: string;
+}
 
 interface SubtitleLine {
   id: string;
   start: number;
   end: number;
   text: string;
+  emoji?: string;
+  wordOverrides?: Record<number, WordOverride>;
 }
 
 interface ClipItem {
   id: string | number;
+  jobId?: string;
+  clipIndex?: number;
   title: string;
   hookTitle?: string;
   score: number;
@@ -46,6 +58,8 @@ interface ClipItem {
   end: number;
   duration: number;
   subtitleStyle: string;
+  activeColorAss?: string;
+  enableEmojis?: boolean;
   subtitles: SubtitleLine[];
   thumbnailUrl?: string;
   rawVideoUrl?: string;
@@ -54,6 +68,7 @@ interface ClipItem {
 
 interface ProjectFolder {
   id: string;
+  jobId?: string;
   title: string;
   channel: string;
   sourceUrl?: string;
@@ -68,60 +83,81 @@ const SUBTITLE_PRESETS = [
     id: 'hormozi',
     name: 'Hormozi Pro',
     badge: 'Más Viral',
-    previewText: '¡ESTO CAMBIA TODO!',
-    previewClass: 'text-yellow-300 font-black tracking-wide drop-shadow-[0_3px_3px_rgba(0,0,0,1)] uppercase',
-    defaultColorAss: '&H0000FFFF'
+    words: ['¡ESTO', 'CAMBIA', 'TODO!'],
+    activeIndex: 1,
+    emoji: '🔥',
+    baseClass: 'text-white font-black tracking-wide drop-shadow-[0_3px_3px_rgba(0,0,0,1)] uppercase',
+    defaultColorAss: '&H0000FFFF',
+    defaultHex: '#FACC15'
   },
   {
     id: 'mrbeast',
     name: 'MrBeast Impacto',
     badge: 'Alto Contraste',
-    previewText: '¡NO LO VAS A CREER!',
-    previewClass: 'text-white font-black tracking-wider drop-shadow-[0_4px_0_rgba(0,0,0,1)] uppercase',
-    defaultColorAss: '&H00FFFFFF'
+    words: ['¡NO', 'LO', 'CREERÁS!'],
+    activeIndex: 2,
+    emoji: '😱',
+    baseClass: 'text-white font-black tracking-wider drop-shadow-[0_4px_0_rgba(0,0,0,1)] uppercase',
+    defaultColorAss: '&H0055FF44',
+    defaultHex: '#4ADE80'
   },
   {
     id: 'neon',
     name: 'Neón Viral',
     badge: 'Gaming / Clips',
-    previewText: '¡QUÉ LOCURA EN VIVO!',
-    previewClass: 'text-cyan-300 font-black drop-shadow-[0_0_10px_rgba(236,72,153,0.95)] uppercase',
-    defaultColorAss: '&H00FFF200'
+    words: ['¡QUÉ', 'LOCURA', 'VIVO!'],
+    activeIndex: 1,
+    emoji: '⚡',
+    baseClass: 'text-white font-black drop-shadow-[0_0_10px_rgba(236,72,153,0.95)] uppercase',
+    defaultColorAss: '&H00FFF200',
+    defaultHex: '#22D3EE'
   },
   {
     id: 'capcut',
     name: 'Caja CapCut',
     badge: 'Lectura Clara',
-    previewText: 'SUBTÍTULO CON FONDO',
-    previewClass: 'bg-black/85 text-white px-2.5 py-1 rounded-md font-bold uppercase',
-    defaultColorAss: '&H00FFFFFF'
+    words: ['TEXTO', 'CON', 'FONDO'],
+    activeIndex: 1,
+    emoji: '🚀',
+    baseClass: 'bg-black/85 text-white px-2 py-0.5 rounded-md font-bold uppercase',
+    defaultColorAss: '&H0000FFFF',
+    defaultHex: '#FACC15'
   },
   {
     id: 'minimal',
     name: 'Minimalista',
     badge: 'Podcast',
-    previewText: 'Texto limpio y elegante',
-    previewClass: 'text-white/95 font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]',
-    defaultColorAss: '&H00FFFFFF'
+    words: ['Texto', 'limpio', 'real'],
+    activeIndex: 2,
+    emoji: '✨',
+    baseClass: 'text-white/95 font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]',
+    defaultColorAss: '&H00B469FF',
+    defaultHex: '#F472B6'
   },
   {
     id: 'none',
     name: 'Sin Subtítulos',
     badge: 'Video Limpio',
-    previewText: 'Solo recorte vertical 9:16',
-    previewClass: 'text-slate-400 italic text-xs',
-    defaultColorAss: '&H00FFFFFF'
+    words: ['Solo', 'recorte', '9:16'],
+    activeIndex: -1,
+    emoji: '',
+    baseClass: 'text-slate-400 italic text-xs',
+    defaultColorAss: '&H00FFFFFF',
+    defaultHex: '#FFFFFF'
   }
 ];
 
 const COLOR_SWATCHES = [
   { label: 'Amarillo Viral', hex: '#FACC15', ass: '&H0000FFFF' },
-  { label: 'Blanco Puro', hex: '#FFFFFF', ass: '&H00FFFFFF' },
-  { label: 'Cian Neón', hex: '#22D3EE', ass: '&H00FFF200' },
   { label: 'Verde Lima', hex: '#4ADE80', ass: '&H0055FF44' },
+  { label: 'Cian Neón', hex: '#22D3EE', ass: '&H00FFF200' },
   { label: 'Rosa Intenso', hex: '#F472B6', ass: '&H00B469FF' },
-  { label: 'Naranja Fuego', hex: '#FB923C', ass: '&H000088FF' }
+  { label: 'Naranja Fuego', hex: '#FB923C', ass: '&H000088FF' },
+  { label: 'Rojo Impacto', hex: '#F87171', ass: '&H003333FF' },
+  { label: 'Blanco Puro', hex: '#FFFFFF', ass: '&H00FFFFFF' }
 ];
+
+const QUICK_EMOJIS = ['🔥', '💰', '🚀', '😱', '💯', '⚡', '😂', '👑', '🎯', '🤯', '❤️', '✨'];
 
 const API_BASE =
   (import.meta as any).env?.VITE_API_URL ||
@@ -147,6 +183,8 @@ export function App() {
   const [clipDuration, setClipDuration] = useState<number>(30);
   const [clipCount, setClipCount] = useState<number>(3);
   const [selectedPreset, setSelectedPreset] = useState<string>('hormozi');
+  const [selectedActiveColorAss, setSelectedActiveColorAss] = useState<string>('&H0000FFFF');
+  const [enableAutoEmojis, setEnableAutoEmojis] = useState<boolean>(true);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [processStep, setProcessStep] = useState(0);
@@ -173,12 +211,15 @@ export function App() {
   const [editingClip, setEditingClip] = useState<ClipItem | null>(null);
   const [editSubtitles, setEditSubtitles] = useState<SubtitleLine[]>([]);
   const [editStyleId, setEditStyleId] = useState<string>('hormozi');
-  const [editFontSize, setEditFontSize] = useState<number>(46);
+  const [editFontSize, setEditFontSize] = useState<number>(48);
   const [editColorAss, setEditColorAss] = useState<string>('&H0000FFFF');
-  const [editMarginV, setEditMarginV] = useState<number>(190);
+  const [editMarginV, setEditMarginV] = useState<number>(210);
+  const [editEnableEmojis, setEditEnableEmojis] = useState<boolean>(true);
+  const [selectedWordTarget, setSelectedWordTarget] = useState<{ lineIdx: number; wordIdx: number } | null>(null);
   const [currentPreviewTime, setCurrentPreviewTime] = useState<number>(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(true);
   const [isRenderingEdit, setIsRenderingEdit] = useState<boolean>(false);
+  const [renderSuccessNotice, setRenderSuccessNotice] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -197,6 +238,8 @@ export function App() {
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0] || null;
   const remainingFree = Math.max(0, 10 - trialUsed);
+  const currentSelectedSwatch =
+    COLOR_SWATCHES.find((s) => s.ass === selectedActiveColorAss) || COLOR_SWATCHES[0];
 
   const handleActivateOwner = (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,7 +263,7 @@ export function App() {
   };
 
   const pollJobUntilDone = async (baseApi: string, jobId: string): Promise<any> => {
-    const maxAttempts = 360; // Hasta 15 minutos (360 x 2.5s) sin corte HTTP 499
+    const maxAttempts = 360;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 2500));
 
@@ -281,9 +324,12 @@ export function App() {
       formData.append('clipDuration', String(clipDuration));
       formData.append('clipCount', String(clipCount));
       formData.append('subtitleStyle', selectedPreset);
+      formData.append('activeColorAss', selectedActiveColorAss);
+      formData.append('enableEmojis', String(enableAutoEmojis));
+      formData.append('inputMode', inputMode);
 
       if (inputMode === 'upload' && selectedFile) {
-        formData.append('video', selectedFile);
+        formData.append('video', selectedFile, selectedFile.name);
       } else {
         formData.append('url', videoUrl.trim());
       }
@@ -298,12 +344,15 @@ export function App() {
         throw new Error(enqueueData.details || enqueueData.error || 'No se pudo iniciar el trabajo en Railway.');
       }
 
-      const data = enqueueData.jobId
-        ? await pollJobUntilDone(baseApi, enqueueData.jobId)
+      const resolvedJobId = enqueueData.jobId || '';
+      const data = resolvedJobId
+        ? await pollJobUntilDone(baseApi, resolvedJobId)
         : enqueueData;
 
       const normalizedClips: ClipItem[] = (data.clips || []).map((c: any, idx: number) => ({
         id: c.id || `${Date.now()}_${idx + 1}`,
+        jobId: c.jobId || resolvedJobId || data.project?.id || '',
+        clipIndex: typeof c.clipIndex === 'number' ? c.clipIndex : idx + 1,
         title: c.title || `Clip Viral #${idx + 1}`,
         hookTitle: c.hookTitle || '',
         score: Number(c.score) || Math.max(85, 99 - idx),
@@ -311,18 +360,38 @@ export function App() {
         end: Number(c.end) || clipDuration,
         duration: Number(c.duration) || clipDuration,
         subtitleStyle: c.subtitleStyle || selectedPreset,
-        subtitles: Array.isArray(c.subtitles) ? c.subtitles : [],
+        activeColorAss: c.activeColorAss || selectedActiveColorAss,
+        enableEmojis: typeof c.enableEmojis === 'boolean' ? c.enableEmojis : enableAutoEmojis,
+        subtitles: Array.isArray(c.subtitles)
+          ? c.subtitles.map((s: any, sIdx: number) => ({
+              id: s.id || `${idx}_${sIdx}`,
+              start: Number(s.start) || 0,
+              end: Number(s.end) || 2,
+              text: s.text || '',
+              emoji: s.emoji || '',
+              wordOverrides: s.wordOverrides || {}
+            }))
+          : [],
         thumbnailUrl: c.thumbnailUrl || data.project?.thumbnail || '',
         rawVideoUrl: c.rawVideoUrl || c.videoUrl || c.downloadUrl || '',
         downloadUrl: c.videoUrl || c.downloadUrl || ''
       }));
 
       const newFolder: ProjectFolder = {
-        id: data.project?.id || Date.now().toString(),
-        title: data.project?.title || 'Proyecto Viral • JONY CLIP RD',
+        id: data.project?.id || resolvedJobId || Date.now().toString(),
+        jobId: resolvedJobId || data.project?.id || '',
+        title:
+          data.project?.title ||
+          (inputMode === 'upload' && selectedFile
+            ? selectedFile.name.replace(/\.[^/.]+$/, '')
+            : 'Proyecto Viral • JONY CLIP RD'),
         channel: data.project?.channel || 'JONY CLIP RD Studio',
-        sourceUrl: data.project?.sourceUrl || videoUrl.trim(),
-        thumbnailUrl: data.project?.thumbnail || data.project?.thumbnailUrl || normalizedClips[0]?.thumbnailUrl || '',
+        sourceUrl: data.project?.sourceUrl || (inputMode === 'link' ? videoUrl.trim() : ''),
+        thumbnailUrl:
+          data.project?.thumbnail ||
+          data.project?.thumbnailUrl ||
+          normalizedClips[0]?.thumbnailUrl ||
+          '',
         totalDuration:
           data.project?.totalDuration ||
           normalizedClips.reduce((acc, item) => acc + (item.duration || clipDuration), 0),
@@ -351,41 +420,82 @@ export function App() {
 
   const openCapCutEditor = (clip: ClipItem) => {
     setEditingClip(clip);
+    setRenderSuccessNotice('');
+    setSelectedWordTarget(null);
     setEditStyleId(clip.subtitleStyle || 'hormozi');
     const presetObj = SUBTITLE_PRESETS.find((p) => p.id === (clip.subtitleStyle || 'hormozi'));
-    setEditColorAss(presetObj?.defaultColorAss || '&H0000FFFF');
-    setEditFontSize(46);
-    setEditMarginV(190);
+    setEditColorAss(clip.activeColorAss || presetObj?.defaultColorAss || '&H0000FFFF');
+    setEditEnableEmojis(clip.enableEmojis !== false);
+    setEditFontSize(48);
+    setEditMarginV(210);
     setCurrentPreviewTime(0);
     setIsPreviewPlaying(true);
 
     if (clip.subtitles && clip.subtitles.length > 0) {
-      setEditSubtitles(clip.subtitles.map((s) => ({ ...s })));
+      setEditSubtitles(
+        clip.subtitles.map((s) => ({
+          ...s,
+          wordOverrides: s.wordOverrides ? { ...s.wordOverrides } : {}
+        }))
+      );
     } else {
       setEditSubtitles([
-        { id: '1', start: 0, end: Math.min(4, clip.duration), text: clip.hookTitle || '¡MIRA LO QUE ACABA DE PASAR AQUÍ!' },
+        {
+          id: '1',
+          start: 0,
+          end: Math.min(4, clip.duration),
+          text: clip.hookTitle || '¡MIRA LO QUE ACABA DE PASAR AQUÍ!',
+          emoji: '🔥',
+          wordOverrides: {}
+        },
         {
           id: '2',
           start: Math.min(4, clip.duration),
           end: Math.min(8, clip.duration),
-          text: 'EDITA ESTE TEXTO ESTILO CAPCUT'
+          text: 'EDITA CADA PALABRA Y COLOR AQUÍ',
+          emoji: '🚀',
+          wordOverrides: {}
         }
       ]);
     }
   };
 
-  const handleSaveCapCutRender = async () => {
+  const updateWordOverride = (lineIdx: number, wordIdx: number, patch: WordOverride) => {
+    setEditSubtitles((prev) =>
+      prev.map((line, lIdx) => {
+        if (lIdx !== lineIdx) return line;
+        const currentOverrides = { ...(line.wordOverrides || {}) };
+        currentOverrides[wordIdx] = {
+          ...(currentOverrides[wordIdx] || {}),
+          ...patch
+        };
+        return { ...line, wordOverrides: currentOverrides };
+      })
+    );
+  };
+
+  const handleApplyCapCutChanges = async (shouldDownloadAfter = false) => {
     if (!editingClip || !activeProject) return;
     setIsRenderingEdit(true);
+    setRenderSuccessNotice('');
+
+    const baseApi = API_BASE.replace(/\/$/, '');
 
     try {
-      const response = await fetch(`${API_BASE.replace(/\/$/, '')}/api/render-clip`, {
+      const response = await fetch(`${baseApi}/api/re-render-clip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          jobId: editingClip.jobId || activeProject.jobId || activeProject.id,
+          clipIndex: editingClip.clipIndex || 1,
+          start: editingClip.start,
+          end: editingClip.end,
+          hookTitle: editingClip.hookTitle || editingClip.title,
           rawVideoUrl: editingClip.rawVideoUrl || editingClip.downloadUrl,
           subtitles: editSubtitles,
           subtitleStyle: editStyleId,
+          activeColorAss: editColorAss,
+          enableEmojis: editEnableEmojis,
           customOptions: {
             fontSize: editFontSize,
             primaryColorAss: editColorAss,
@@ -394,23 +504,21 @@ export function App() {
         })
       });
 
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        triggerDirectDownload(editingClip.downloadUrl, `${editingClip.title}.mp4`);
-        return;
-      }
-
       const data = await response.json();
       if (!response.ok || (!data.ok && !data.success)) {
-        throw new Error(data.details || data.error || 'Error renderizando subtítulos.');
+        throw new Error(data.details || data.error || 'Error re-renderizando subtítulos.');
       }
 
-      const finalUrl = data.videoUrl || data.downloadUrl || editingClip.downloadUrl;
+      const rawFinalUrl = data.videoUrl || data.downloadUrl || editingClip.downloadUrl;
+      const cacheBustedUrl = `${rawFinalUrl.split('?')[0]}?v=${Date.now()}`;
+
       const updatedClip: ClipItem = {
         ...editingClip,
         subtitleStyle: editStyleId,
+        activeColorAss: editColorAss,
+        enableEmojis: editEnableEmojis,
         subtitles: editSubtitles,
-        downloadUrl: finalUrl
+        downloadUrl: cacheBustedUrl
       };
 
       setProjects((prev) =>
@@ -424,7 +532,11 @@ export function App() {
         )
       );
       setEditingClip(updatedClip);
-      triggerDirectDownload(finalUrl, `${updatedClip.title}.mp4`);
+      setRenderSuccessNotice('¡Subtítulos, colores y emojis aplicados al video en tiempo real!');
+
+      if (shouldDownloadAfter) {
+        triggerDirectDownload(cacheBustedUrl, `${updatedClip.title}.mp4`);
+      }
     } catch (err: any) {
       alert(`No se pudo aplicar el estilo: ${err.message}`);
     } finally {
@@ -456,6 +568,48 @@ export function App() {
     (s) => currentPreviewTime >= s.start && currentPreviewTime <= s.end
   );
   const activeSwatch = COLOR_SWATCHES.find((c) => c.ass === editColorAss) || COLOR_SWATCHES[0];
+
+  const renderAnimatedPreviewWords = () => {
+    if (!activeLiveSubtitle) return null;
+    const words = activeLiveSubtitle.text.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return null;
+
+    const lineDuration = Math.max(0.2, activeLiveSubtitle.end - activeLiveSubtitle.start);
+    const progressInLine = Math.max(
+      0,
+      Math.min(0.999, (currentPreviewTime - activeLiveSubtitle.start) / lineDuration)
+    );
+    const activeWordIdx = Math.floor(progressInLine * words.length);
+
+    return (
+      <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
+        {words.map((word, wIdx) => {
+          const override = activeLiveSubtitle.wordOverrides?.[wIdx];
+          const isCurrent = wIdx === activeWordIdx;
+          const wordHex = override?.hex || (isCurrent ? activeSwatch.hex : '#FFFFFF');
+          const wordEmoji = editEnableEmojis ? override?.emoji || '' : '';
+
+          return (
+            <span
+              key={wIdx}
+              style={{
+                color: wordHex,
+                transform: isCurrent ? 'scale(1.14)' : 'scale(1)',
+                transition: 'transform 0.1s ease, color 0.1s ease'
+              }}
+              className="inline-flex items-center gap-0.5"
+            >
+              <span>{word}</span>
+              {wordEmoji && <span>{wordEmoji}</span>}
+            </span>
+          );
+        })}
+        {editEnableEmojis && activeLiveSubtitle.emoji && (
+          <span className="ml-1">{activeLiveSubtitle.emoji}</span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#070510] text-white font-sans selection:bg-fuchsia-500 selection:text-white">
@@ -535,7 +689,7 @@ export function App() {
           <div className="flex items-center gap-2">
             {isOwner ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/40 text-amber-300 text-xs font-bold">
-                <Crown className="w-4 h-4 text-amber-400" />
+               <Crown className="w-4 h-4 text-amber-400" />
                 <span>Dueño VIP • Ilimitado</span>
               </div>
             ) : (
@@ -614,136 +768,168 @@ export function App() {
               )}
             </div>
 
-           <div className="grid md:grid-cols-2 gap-6 mb-6">
-          {/* BARRA 1: CANTIDAD DE CLIPS (1 a 100 + editable libre) */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
-                Cantidad de clips a sacar
-              </span>
-              <div className="flex items-center gap-1.5">
+            <div className="grid md:grid-cols-2 gap-6 mb-6">
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
+                    Cantidad de clips a sacar
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={clipCount}
+                      onChange={(e) => {
+                        const val = Math.max(1, Math.min(100, Number(e.target.value) || 1));
+                        setClipCount(val);
+                      }}
+                      className="w-16 text-center text-xs font-bold px-2 py-1 rounded-full bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 focus:outline-none focus:border-fuchsia-400"
+                    />
+                    <span className="text-xs font-semibold text-purple-300">clips</span>
+                  </div>
+                </div>
+
                 <input
-                  type="number"
+                  type="range"
                   min={1}
                   max={100}
-                  value={clipCount}
-                  onChange={(e) => {
-                    const val = Math.max(1, Math.min(100, Number(e.target.value) || 1));
-                    setClipCount(val);
-                  }}
-                  className="w-16 text-center text-xs font-bold px-2 py-1 rounded-full bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 focus:outline-none focus:border-fuchsia-400"
+                  step={1}
+                  value={Math.min(100, Math.max(1, clipCount))}
+                  onChange={(e) => setClipCount(Number(e.target.value))}
+                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 mb-3"
                 />
-                <span className="text-xs font-semibold text-purple-300">clips</span>
+
+                <div className="flex items-center justify-between gap-1.5">
+                  {[1, 10, 25, 50, 100].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setClipCount(num)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+                        clipCount === num
+                          ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/25'
+                          : 'bg-white/5 text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <input
-              type="range"
-              min={1}
-              max={100}
-              step={1}
-              value={Math.min(100, Math.max(1, clipCount))}
-              onChange={(e) => setClipCount(Number(e.target.value))}
-              className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 mb-3"
-            />
+              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
+                    Duración de cada clip
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={0}
+                      max={300}
+                      value={clipDuration}
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.min(300, Number(e.target.value) || 0));
+                        setClipDuration(val);
+                      }}
+                      className="w-16 text-center text-xs font-bold px-2 py-1 rounded-full bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 focus:outline-none focus:border-fuchsia-400"
+                    />
+                    <span className="text-xs font-semibold text-purple-300">
+                      {clipDuration === 0
+                        ? 'Auto IA'
+                        : clipDuration >= 60
+                        ? `s (${Math.floor(clipDuration / 60)}m ${clipDuration % 60 > 0 ? `${clipDuration % 60}s` : ''})`
+                        : 'seg'}
+                    </span>
+                  </div>
+                </div>
 
-            <div className="flex items-center justify-between gap-1.5">
-              {[1, 10, 25, 50, 100].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => setClipCount(num)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
-                    clipCount === num
-                      ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/25'
-                      : 'bg-white/5 text-purple-200 hover:bg-white/10'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* BARRA 2: DURACIÓN DE CADA CLIP (0s Auto IA hasta 300s / 5 min) */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
-                Duración de cada clip
-              </span>
-              <div className="flex items-center gap-1.5">
                 <input
-                  type="number"
+                  type="range"
                   min={0}
                   max={300}
-                  value={clipDuration}
-                  onChange={(e) => {
-                    const val = Math.max(0, Math.min(300, Number(e.target.value) || 0));
-                    setClipDuration(val);
-                  }}
-                  className="w-16 text-center text-xs font-bold px-2 py-1 rounded-full bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 focus:outline-none focus:border-fuchsia-400"
+                  step={5}
+                  value={Math.min(300, Math.max(0, clipDuration))}
+                  onChange={(e) => setClipDuration(Number(e.target.value))}
+                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 mb-3"
                 />
-                <span className="text-xs font-semibold text-purple-300">
-                  {clipDuration === 0
-                    ? 'Auto IA'
-                    : clipDuration >= 60
-                    ? `s (${Math.floor(clipDuration / 60)}m ${clipDuration % 60 > 0 ? `${clipDuration % 60}s` : ''})`
-                    : 'seg'}
-                </span>
+
+                <div className="flex items-center justify-between gap-1">
+                  {[
+                    { label: 'Auto', val: 0 },
+                    { label: '15s', val: 15 },
+                    { label: '30s', val: 30 },
+                    { label: '60s', val: 60 },
+                    { label: '90s', val: 90 },
+                    { label: '2m', val: 120 },
+                    { label: '3m', val: 180 }
+                  ].map((preset) => (
+                    <button
+                      key={preset.val}
+                      type="button"
+                      onClick={() => setClipDuration(preset.val)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+                        clipDuration === preset.val
+                          ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/25'
+                          : 'bg-white/5 text-purple-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <input
-              type="range"
-              min={0}
-              max={300}
-              step={5}
-              value={Math.min(300, Math.max(0, clipDuration))}
-              onChange={(e) => setClipDuration(Number(e.target.value))}
-              className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 mb-3"
-            />
-
-            <div className="flex items-center justify-between gap-1">
-              {[
-                { label: 'Auto', val: 0 },
-                { label: '15s', val: 15 },
-                { label: '30s', val: 30 },
-                { label: '60s', val: 60 },
-                { label: '90s', val: 90 },
-                { label: '2m', val: 120 },
-                { label: '3m', val: 180 },
-              ].map((preset) => (
-                <button
-                  key={preset.val}
-                  type="button"
-                  onClick={() => setClipDuration(preset.val)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
-                    clipDuration === preset.val
-                      ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/25'
-                      : 'bg-white/5 text-purple-200 hover:bg-white/10'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-6">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-purple-200 flex items-center gap-2">
-                  <Type className="w-4 h-4 text-fuchsia-400" /> Estilo de Subtítulos Automáticos (Estilo CapCut)
+                  <Type className="w-4 h-4 text-fuchsia-400" /> Estilo de Subtítulos Dinámicos (Estilo CapCut)
                 </span>
-                <span className="text-[11px] text-slate-400">
-                  Luego podrás editar texto, color y tamaño en el estudio
-                </span>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-xl border border-white/10">
+                    <Palette className="w-3.5 h-3.5 text-fuchsia-300" />
+                    <span className="text-[11px] text-slate-300 mr-1">Palabra activa:</span>
+                    {COLOR_SWATCHES.map((sw) => (
+                      <button
+                        key={sw.ass}
+                        type="button"
+                        onClick={() => setSelectedActiveColorAss(sw.ass)}
+                        style={{ backgroundColor: sw.hex }}
+                        title={sw.label}
+                        className={`w-4 h-4 rounded-full border transition ${
+                          selectedActiveColorAss === sw.ass ? 'border-white scale-125' : 'border-black/50'
+                        }`}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setEnableAutoEmojis((v) => !v)}
+                    className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 transition ${
+                      enableAutoEmojis
+                        ? 'border-amber-400/50 bg-amber-500/15 text-amber-200'
+                        : 'border-white/10 bg-black/30 text-slate-400'
+                    }`}
+                  >
+                    <Smile className="w-3.5 h-3.5" />
+                    <span>Emojis IA: {enableAutoEmojis ? 'ON 🔥' : 'OFF'}</span>
+                  </button>
+                </div>
               </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
                 {SUBTITLE_PRESETS.map((preset) => (
                   <button
                     key={preset.id}
-                    onClick={() => setSelectedPreset(preset.id)}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPreset(preset.id);
+                      setSelectedActiveColorAss(preset.defaultColorAss);
+                    }}
                     className={`p-3 rounded-xl border text-left transition flex flex-col justify-between h-24 ${
                       selectedPreset === preset.id
                         ? 'border-fuchsia-400 bg-fuchsia-500/15 shadow-lg shadow-fuchsia-950/40'
@@ -755,8 +941,26 @@ export function App() {
                       {selectedPreset === preset.id && <Check className="w-3.5 h-3.5 text-fuchsia-400" />}
                     </div>
                     <div className="text-center my-auto">
-                      <span className={`text-[11px] leading-tight block ${preset.previewClass}`}>
-                        {preset.previewText}
+                      <span className={`text-[11px] leading-tight inline-flex flex-wrap justify-center gap-1 ${preset.baseClass}`}>
+                        {preset.words.map((w, wIdx) => (
+                          <span
+                            key={wIdx}
+                            style={
+                              wIdx === preset.activeIndex
+                                ? {
+                                    color:
+                                      selectedPreset === preset.id
+                                        ? currentSelectedSwatch.hex
+                                        : preset.defaultHex,
+                                    transform: 'scale(1.12)'
+                                  }
+                                : undefined
+                            }
+                          >
+                            {w}
+                          </span>
+                        ))}
+                        {enableAutoEmojis && preset.emoji && <span>{preset.emoji}</span>}
                       </span>
                     </div>
                   </button>
@@ -779,7 +983,7 @@ export function App() {
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 px-1">
                     <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <Lock className="w-3 h-3" /> Cola BullMQ + FFmpeg Activo • Sin límite de tiempo HTTP
+                      <Lock className="w-3 h-3" /> Cola BullMQ + FFmpeg Activo • Subtítulos palabra por palabra
                     </span>
                   </div>
                 </div>
@@ -799,7 +1003,7 @@ export function App() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="video/mp4,video/quicktime,video/x-matroska"
+                  accept="video/mp4,video/quicktime,video/x-matroska,video/*"
                   onChange={handleFileChange}
                   className="hidden"
                 />
@@ -993,6 +1197,7 @@ export function App() {
                   >
                     <div className="relative aspect-[9/16] bg-black overflow-hidden">
                       <video
+                        key={clip.downloadUrl}
                         src={clip.downloadUrl}
                         poster={clip.thumbnailUrl || activeProject.thumbnailUrl}
                         controls
@@ -1168,10 +1373,10 @@ export function App() {
 
       {editingClip && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-6xl max-h-[92vh] rounded-3xl border border-fuchsia-500/40 bg-[#0d091f] overflow-hidden flex flex-col shadow-2xl">
+          <div className="w-full max-w-6xl max-h-[94vh] rounded-3xl border border-fuchsia-500/40 bg-[#0d091f] overflow-hidden flex flex-col shadow-2xl">
             <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between bg-[#140e2e]">
               <div className="flex items-center gap-2.5">
-                <span className="px-2.5 py-1 rounded-lg bg-fuchsia-600 text-xs font-black">CAPCUT STUDIO</span>
+                <span className="px-2.5 py-1 rounded-lg bg-fuchsia-600 text-xs font-black">CAPCUT STUDIO PRO</span>
                 <h2 className="font-bold text-sm sm:text-base line-clamp-1">{editingClip.title}</h2>
               </div>
               <button
@@ -1183,11 +1388,12 @@ export function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto grid lg:grid-cols-12 gap-6 p-5">
-              <div className="lg:col-span-5 flex flex-col items-center justify-center bg-black/60 rounded-2xl p-4 border border-white/10">
-                <div className="relative w-full max-w-[270px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-fuchsia-500/40 shadow-2xl">
+              <div className="lg:col-span-4 flex flex-col items-center justify-center bg-black/60 rounded-2xl p-4 border border-white/10">
+                <div className="relative w-full max-w-[260px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-fuchsia-500/40 shadow-2xl">
                   <video
+                    key={editingClip.downloadUrl}
                     ref={editorVideoRef}
-                    src={editingClip.rawVideoUrl || editingClip.downloadUrl}
+                    src={editingClip.downloadUrl}
                     autoPlay
                     loop
                     playsInline
@@ -1200,10 +1406,9 @@ export function App() {
                       style={{ bottom: `${Math.max(8, Math.min(75, Math.round((editMarginV / 1280) * 100)))}%` }}
                       className="pointer-events-none absolute left-3 right-3 text-center px-2"
                     >
-                      <span
+                      <div
                         style={{
-                          fontSize: `${Math.max(13, Math.round(editFontSize * 0.42))}px`,
-                          color: activeSwatch.hex
+                          fontSize: `${Math.max(13, Math.round(editFontSize * 0.42))}px`
                         }}
                         className={`inline-block leading-tight uppercase font-black ${
                           editStyleId === 'capcut'
@@ -1211,8 +1416,8 @@ export function App() {
                             : 'drop-shadow-[0_3px_3px_rgba(0,0,0,1)]'
                         }`}
                       >
-                        {activeLiveSubtitle.text}
-                      </span>
+                        {renderAnimatedPreviewWords()}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1241,15 +1446,31 @@ export function App() {
                 </div>
               </div>
 
-              <div className="lg:col-span-7 space-y-5">
+              <div className="lg:col-span-8 space-y-4">
                 <div>
-                  <label className="text-xs font-black uppercase tracking-wider text-fuchsia-300 flex items-center gap-1.5 mb-2.5">
-                    <Sparkles className="w-4 h-4" /> 1. Plantilla de Subtítulos (Estilo CapCut)
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-black uppercase tracking-wider text-fuchsia-300 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4" /> 1. Estilo Base y Emojis Automáticos
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditEnableEmojis((v) => !v)}
+                      className={`px-3 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 ${
+                        editEnableEmojis
+                          ? 'border-amber-400/50 bg-amber-500/15 text-amber-200'
+                          : 'border-white/10 bg-white/5 text-slate-400'
+                      }`}
+                    >
+                      <Smile className="w-3.5 h-3.5" />
+                      <span>Emojis: {editEnableEmojis ? 'Activados 🔥' : 'Desactivados'}</span>
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {SUBTITLE_PRESETS.map((preset) => (
                       <button
                         key={preset.id}
+                        type="button"
                         onClick={() => {
                           setEditStyleId(preset.id);
                           setEditColorAss(preset.defaultColorAss);
@@ -1261,23 +1482,26 @@ export function App() {
                         }`}
                       >
                         <div className="text-xs font-bold">{preset.name}</div>
-                        <div className={`text-[10px] mt-1 truncate ${preset.previewClass}`}>{preset.previewText}</div>
+                        <div className={`text-[10px] mt-1 truncate ${preset.baseClass}`}>
+                          {preset.words.join(' ')} {preset.emoji}
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-3 gap-3 bg-white/[0.03] border border-white/10 rounded-2xl p-3.5">
+                <div className="grid sm:grid-cols-3 gap-3 bg-white/[0.03] border border-white/10 rounded-2xl p-3">
                   <div>
-                    <span className="text-[11px] font-bold text-slate-300 block mb-2">Color del Texto</span>
+                    <span className="text-[11px] font-bold text-slate-300 block mb-1.5">Color Palabra Activa</span>
                     <div className="flex flex-wrap gap-1.5">
                       {COLOR_SWATCHES.map((sw) => (
                         <button
                           key={sw.ass}
+                          type="button"
                           onClick={() => setEditColorAss(sw.ass)}
                           style={{ backgroundColor: sw.hex }}
                           title={sw.label}
-                          className={`w-6 h-6 rounded-full border-2 transition ${
+                          className={`w-5 h-5 rounded-full border-2 transition ${
                             editColorAss === sw.ass ? 'border-white scale-110' : 'border-black/50'
                           }`}
                         />
@@ -1316,12 +1540,75 @@ export function App() {
                   </div>
                 </div>
 
+                {selectedWordTarget && editSubtitles[selectedWordTarget.lineIdx] && (
+                  <div className="rounded-2xl border border-fuchsia-400/50 bg-fuchsia-500/10 p-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-xs font-bold text-fuchsia-200">
+                      Editando palabra:{' '}
+                      <span className="px-2 py-0.5 rounded bg-black/50 text-white uppercase">
+                        {editSubtitles[selectedWordTarget.lineIdx].text
+                          .trim()
+                          .split(/\s+/)[selectedWordTarget.wordIdx] || ''}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 bg-black/40 px-2 py-1 rounded-lg">
+                        <span className="text-[10px] text-slate-300 mr-1">Color:</span>
+                        {COLOR_SWATCHES.map((sw) => (
+                          <button
+                            key={sw.ass}
+                            type="button"
+                            onClick={() =>
+                              updateWordOverride(selectedWordTarget.lineIdx, selectedWordTarget.wordIdx, {
+                                colorAss: sw.ass,
+                                hex: sw.hex
+                              })
+                            }
+                            style={{ backgroundColor: sw.hex }}
+                            className="w-4 h-4 rounded-full border border-white/40 hover:scale-125 transition"
+                          />
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-black/40 px-2 py-1 rounded-lg">
+                        <span className="text-[10px] text-slate-300 mr-1">Emoji:</span>
+                        {QUICK_EMOJIS.slice(0, 8).map((em) => (
+                          <button
+                            key={em}
+                            type="button"
+                            onClick={() =>
+                              updateWordOverride(selectedWordTarget.lineIdx, selectedWordTarget.wordIdx, {
+                                emoji: em
+                              })
+                            }
+                            className="text-xs hover:scale-125 transition"
+                          >
+                            {em}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateWordOverride(selectedWordTarget.lineIdx, selectedWordTarget.wordIdx, {
+                              emoji: ''
+                            })
+                          }
+                          className="text-[10px] text-rose-300 px-1 hover:underline"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-black uppercase tracking-wider text-cyan-300">
-                      2. Edita cada frase del subtítulo
+                      2. Edita el texto o haz clic en cualquier palabra para cambiar su color/emoji
                     </label>
                     <button
+                      type="button"
                       onClick={() => {
                         const lastEnd = editSubtitles[editSubtitles.length - 1]?.end || 0;
                         setEditSubtitles((prev) => [
@@ -1330,7 +1617,9 @@ export function App() {
                             id: String(Date.now()),
                             start: Number(lastEnd.toFixed(1)),
                             end: Number(Math.min(editingClip.duration, lastEnd + 3).toFixed(1)),
-                            text: 'NUEVA LÍNEA DE TEXTO'
+                            text: 'NUEVA LÍNEA DE TEXTO',
+                            emoji: '🔥',
+                            wordOverrides: {}
                           }
                         ]);
                       }}
@@ -1340,56 +1629,106 @@ export function App() {
                     </button>
                   </div>
 
-                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                    {editSubtitles.map((line, index) => (
-                      <div
-                        key={line.id}
-                        className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl p-2"
-                      >
-                        <span className="text-[11px] font-mono text-slate-400 px-1.5 shrink-0">
-                          {line.start.toFixed(1)}s–{line.end.toFixed(1)}s
-                        </span>
-                        <input
-                          type="text"
-                          value={line.text}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setEditSubtitles((prev) =>
-                              prev.map((item, idx) => (idx === index ? { ...item, text: val } : item))
-                            );
-                          }}
-                          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-fuchsia-400"
-                        />
-                        <button
-                          onClick={() =>
-                            setEditSubtitles((prev) => prev.filter((_, idx) => idx !== index))
-                          }
-                          className="p-1.5 text-slate-400 hover:text-rose-400"
+                  <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                    {editSubtitles.map((line, index) => {
+                      const lineWords = line.text.trim().split(/\s+/).filter(Boolean);
+                      return (
+                        <div
+                          key={line.id}
+                          className="bg-black/40 border border-white/10 rounded-xl p-2.5 space-y-2"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono text-slate-400 px-1.5 shrink-0">
+                              {line.start.toFixed(1)}s–{line.end.toFixed(1)}s
+                            </span>
+                            <input
+                              type="text"
+                              value={line.text}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditSubtitles((prev) =>
+                                  prev.map((item, idx) => (idx === index ? { ...item, text: val } : item))
+                                );
+                              }}
+                              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-fuchsia-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEditSubtitles((prev) => prev.filter((_, idx) => idx !== index))
+                              }
+                              className="p-1.5 text-slate-400 hover:text-rose-400"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 pl-1">
+                            {lineWords.map((w, wIdx) => {
+                              const ov = line.wordOverrides?.[wIdx];
+                              const isSelected =
+                                selectedWordTarget?.lineIdx === index &&
+                                selectedWordTarget?.wordIdx === wIdx;
+                              return (
+                                <button
+                                  key={wIdx}
+                                  type="button"
+                                  onClick={() => setSelectedWordTarget({ lineIdx: index, wordIdx: wIdx })}
+                                  style={ov?.hex ? { color: ov.hex } : undefined}
+                                  className={`px-2 py-0.5 rounded-md text-[11px] font-bold border transition ${
+                                    isSelected
+                                      ? 'border-fuchsia-400 bg-fuchsia-500/25'
+                                      : 'border-white/10 bg-white/5 hover:border-white/30'
+                                  }`}
+                                >
+                                  {w} {ov?.emoji || ''}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div className="pt-2 flex flex-wrap items-center justify-end gap-3">
+                {renderSuccessNotice && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{renderSuccessNotice}</span>
+                  </div>
+                )}
+
+                <div className="pt-1 flex flex-wrap items-center justify-end gap-2.5">
                   <button
+                    type="button"
                     onClick={() => setEditingClip(null)}
                     className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold"
                   >
                     Cerrar
                   </button>
+
                   <button
-                    onClick={handleSaveCapCutRender}
+                    type="button"
+                    onClick={() => handleApplyCapCutChanges(false)}
                     disabled={isRenderingEdit}
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 text-xs sm:text-sm font-black flex items-center gap-2 shadow-xl shadow-fuchsia-600/30 cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-fuchsia-600/30 border border-fuchsia-400/40 text-fuchsia-200 hover:text-white disabled:opacity-50 text-xs font-black flex items-center gap-2 transition cursor-pointer"
+                  >
+                    <Wand2 className="w-4 h-4" />
+                    <span>
+                      {isRenderingEdit ? 'Aplicando en 3s...' : 'Aplicar Cambios en Vivo'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyCapCutChanges(true)}
+                    disabled={isRenderingEdit}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 text-xs sm:text-sm font-black flex items-center gap-2 shadow-xl shadow-fuchsia-600/30 cursor-pointer"
                   >
                     <Download className="w-4 h-4" />
                     <span>
-                      {isRenderingEdit
-                        ? 'Renderizando subtítulos en MP4...'
-                        : 'Descargar MP4 Final'}
+                      {isRenderingEdit ? 'Renderizando MP4...' : 'Guardar y Descargar MP4'}
                     </span>
                   </button>
                 </div>
@@ -1477,4 +1816,4 @@ export function App() {
   );
 }
 
-export default App;
+export default App; 
