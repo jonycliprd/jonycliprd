@@ -614,69 +614,121 @@ export function App() {
               )}
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
-                    Duración de cada clip
-                  </span>
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/30">
-                    ~{clipDuration} segundos
-                  </span>
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {[15, 30, 45, 60, 90].map((sec) => (
-                    <button
-                      key={sec}
-                      onClick={() => setClipDuration(sec)}
-                      className={`py-2 rounded-xl text-xs font-black transition ${
-                        clipDuration === sec
-                          ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white shadow-md'
-                          : 'bg-white/5 text-slate-300 hover:bg-white/10'
-                      }`}
-                    >
-                      {sec}s
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
-                    Cantidad de clips a generar
-                  </span>
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                    {clipCount} clips
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={1}
-                    max={10}
-                    value={clipCount}
-                    onChange={(e) => setClipCount(Number(e.target.value))}
-                    className="w-full accent-fuchsia-500 cursor-pointer"
-                  />
-                  <div className="flex gap-1.5">
-                    {[3, 5, 10].map((n) => (
-                      <button
-                        key={n}
-                        onClick={() => setClipCount(n)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${
-                          clipCount === n
-                            ? 'bg-fuchsia-600 text-white'
-                            : 'bg-white/5 text-slate-300 hover:bg-white/10'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+           <div className="grid md:grid-cols-2 gap-6 mb-6">
+          {/* BARRA 1: CANTIDAD DE CLIPS (1 a 100 + editable libre) */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
+                Cantidad de clips a sacar
+              </span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={clipCount}
+                  onChange={(e) => {
+                    const val = Math.max(1, Math.min(100, Number(e.target.value) || 1));
+                    setClipCount(val);
+                  }}
+                  className="w-16 text-center text-xs font-bold px-2 py-1 rounded-full bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 focus:outline-none focus:border-fuchsia-400"
+                />
+                <span className="text-xs font-semibold text-purple-300">clips</span>
               </div>
             </div>
+
+            <input
+              type="range"
+              min={1}
+              max={100}
+              step={1}
+              value={Math.min(100, Math.max(1, clipCount))}
+              onChange={(e) => setClipCount(Number(e.target.value))}
+              className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 mb-3"
+            />
+
+            <div className="flex items-center justify-between gap-1.5">
+              {[1, 10, 25, 50, 100].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setClipCount(num)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+                    clipCount === num
+                      ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/25'
+                      : 'bg-white/5 text-purple-200 hover:bg-white/10'
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* BARRA 2: DURACIÓN DE CADA CLIP (0s Auto IA hasta 300s / 5 min) */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-200">
+                Duración de cada clip
+              </span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={300}
+                  value={clipDuration}
+                  onChange={(e) => {
+                    const val = Math.max(0, Math.min(300, Number(e.target.value) || 0));
+                    setClipDuration(val);
+                  }}
+                  className="w-16 text-center text-xs font-bold px-2 py-1 rounded-full bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 focus:outline-none focus:border-fuchsia-400"
+                />
+                <span className="text-xs font-semibold text-purple-300">
+                  {clipDuration === 0
+                    ? 'Auto IA'
+                    : clipDuration >= 60
+                    ? `s (${Math.floor(clipDuration / 60)}m ${clipDuration % 60 > 0 ? `${clipDuration % 60}s` : ''})`
+                    : 'seg'}
+                </span>
+              </div>
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={300}
+              step={5}
+              value={Math.min(300, Math.max(0, clipDuration))}
+              onChange={(e) => setClipDuration(Number(e.target.value))}
+              className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 mb-3"
+            />
+
+            <div className="flex items-center justify-between gap-1">
+              {[
+                { label: 'Auto', val: 0 },
+                { label: '15s', val: 15 },
+                { label: '30s', val: 30 },
+                { label: '60s', val: 60 },
+                { label: '90s', val: 90 },
+                { label: '2m', val: 120 },
+                { label: '3m', val: 180 },
+              ].map((preset) => (
+                <button
+                  key={preset.val}
+                  type="button"
+                  onClick={() => setClipDuration(preset.val)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
+                    clipDuration === preset.val
+                      ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-lg shadow-fuchsia-500/25'
+                      : 'bg-white/5 text-purple-200 hover:bg-white/10'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
             <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-6">
               <div className="flex items-center justify-between mb-3">
