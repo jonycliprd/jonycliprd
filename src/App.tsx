@@ -479,8 +479,7 @@ export function App() {
     setIsRenderingEdit(true);
     setRenderSuccessNotice('');
 
-    const baseApi = API_BASE.replace(/\/$/, '');
-
+const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
     try {
       const response = await fetch(`${baseApi}/api/re-render-clip`, {
         method: 'POST',
