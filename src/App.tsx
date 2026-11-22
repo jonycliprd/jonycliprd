@@ -179,6 +179,22 @@ export function App() {
   const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans'>('create');
   const [inputMode, setInputMode] = useState<'link' | 'upload'>('link');
   const [videoUrl, setVideoUrl] = useState('');
+  const youtubeVideoId = (() => {
+    try {
+      const parsed = new URL(videoUrl.trim());
+      const host = parsed.hostname.toLowerCase();
+      const id = host === 'youtu.be' || host === 'www.youtu.be'
+        ? parsed.pathname.split('/')[1]
+        : ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host)
+          ? parsed.pathname === '/watch' ? parsed.searchParams.get('v') : parsed.pathname.match(/^\/(?:live|shorts|embed)\/([\w-]{11})$/)?.[1]
+          : null;
+      return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+    } catch { return null; }
+  })();
+  const isYouTubeLiveLink = (() => {
+    try { return /^\/live\//.test(new URL(videoUrl.trim()).pathname) && !!youtubeVideoId; }
+    catch { return false; }
+  })();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [clipDuration, setClipDuration] = useState<number>(30);
   const [clipCount, setClipCount] = useState<number>(3);
@@ -980,6 +996,29 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       className="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
                     />
                   </div>
+                  {youtubeVideoId && (
+                    <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/5 p-3 space-y-2 text-xs">
+                      <div className="font-semibold text-cyan-200 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Enlace de YouTube reconocido {isYouTubeLiveLink ? '• Formato de directo' : ''}
+                      </div>
+                      <p className="text-slate-300">
+                        Reconocer el enlace no confirma que siga en vivo ni da acceso al video.
+                        La comprobación oficial funciona en el servidor de pruebas.
+                      </p>
+                      <a href={`https://www.youtube.com/watch?v=${youtubeVideoId}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 font-semibold text-cyan-300 underline">
+                        <ExternalLink className="w-3.5 h-3.5" /> Ver transmisión en YouTube
+                      </a>
+                    </div>
+                  )}
+                  {isYouTubeLiveLink && (
+                    <p className="text-xs text-amber-300 px-1">
+                      La captura automática de directos de terceros aún está en desarrollo.
+                      Para generar clips ahora, sube un archivo MP4 que tengas permiso de procesar.
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 px-1">
                     <span className="text-emerald-400 font-semibold flex items-center gap-1">
                       <Lock className="w-3 h-3" /> Cola BullMQ + FFmpeg Activo • Subtítulos palabra por palabra
