@@ -195,6 +195,30 @@ export function App() {
     try { return /^\/live\//.test(new URL(videoUrl.trim()).pathname) && !!youtubeVideoId; }
     catch { return false; }
   })();
+  const [youtubeStatus, setYoutubeStatus] = useState<{found?:boolean; isLive?:boolean; title?:string; channel?:string; liveStatus?:string; error?:string} | null>(null);
+  const [isCheckingYouTube, setIsCheckingYouTube] = useState(false);
+  useEffect(() => {
+    if (!youtubeVideoId || inputMode !== 'link') {
+      setYoutubeStatus(null);
+      setIsCheckingYouTube(false);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setIsCheckingYouTube(true);
+      setYoutubeStatus(null);
+      try {
+        const response = await fetch('/api/youtube-check?id=' + encodeURIComponent(youtubeVideoId), {signal:controller.signal});
+        const data = await response.json();
+        if (!controller.signal.aborted) setYoutubeStatus(response.ok ? data : {error:data.error || 'No se pudo consultar el directo'});
+      } catch {
+        if (!controller.signal.aborted) setYoutubeStatus({error:'No se pudo conectar con el verificador'});
+      } finally {
+        if (!controller.signal.aborted) setIsCheckingYouTube(false);
+      }
+    }, 700);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [youtubeVideoId, inputMode]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [clipDuration, setClipDuration] = useState<number>(30);
   const [clipCount, setClipCount] = useState<number>(3);
@@ -1011,6 +1035,24 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                         className="inline-flex items-center gap-1.5 font-semibold text-cyan-300 underline">
                         <ExternalLink className="w-3.5 h-3.5" /> Ver transmisión en YouTube
                       </a>
+                    </div>
+                  )}
+                  {youtubeVideoId && (
+                    <div className="text-xs px-1" aria-live="polite">
+                      {isCheckingYouTube && <span className="text-cyan-200">Consultando estado con la API oficial de YouTube...</span>}
+                      {!isCheckingYouTube && youtubeStatus?.error && <span className="text-amber-300">{youtubeStatus.error}</span>}
+                      {!isCheckingYouTube && youtubeStatus?.found && (
+                        <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-1">
+                          <p className={youtubeStatus.isLive ? 'font-bold text-emerald-300' : 'font-bold text-slate-200'}>
+                            {youtubeStatus.isLive ? '● EN VIVO ahora' : youtubeStatus.liveStatus === 'upcoming' ? 'Próxima transmisión (todavía no en vivo)' : 'No está en vivo actualmente'}
+                          </p>
+                          <p className="text-white">{youtubeStatus.title}</p>
+                          <p className="text-slate-400">{youtubeStatus.channel}</p>
+                          <p className="text-slate-400">Verificación de metadatos solamente; la captura del directo no está disponible.</p>
+                        </div>
+                      )}
+                      {!isCheckingYouTube && youtubeStatus && youtubeStatus.found === false &&
+                        <span className="text-amber-300">Video no encontrado en YouTube.</span>}
                     </div>
                   )}
                   {isYouTubeLiveLink && (
