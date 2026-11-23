@@ -222,6 +222,11 @@ export function App() {
   const [isRenderingEdit, setIsRenderingEdit] = useState<boolean>(false);
   const [renderSuccessNotice, setRenderSuccessNotice] = useState<string>('');
   const [publishClipDraft, setPublishClipDraft] = useState<ClipItem | null>(null);
+  const [publishTitle, setPublishTitle] = useState('');
+  const [publishDescription, setPublishDescription] = useState('');
+  const [publishHashtags, setPublishHashtags] = useState('');
+  const [publishNetworks, setPublishNetworks] = useState<string[]>([]);
+
   const [downloadHelpUrl, setDownloadHelpUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -602,6 +607,24 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
     }
   };
 
+  // Prepare the post with a real title, description and hashtags. Publishing
+  // requires each creator to authorize their accounts via official OAuth APIs.
+  const prepareSocialPost = (clip: ClipItem) => {
+    const candidateTitle = (clip.hookTitle || clip.title || 'Clip Viral').trim();
+    const cleanTitle = candidateTitle.replace(/\s+/g, ' ').slice(0, 100);
+    const topicTags = cleanTitle
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().split(/[^a-z0-9]+/)
+      .filter((word) => word.length >= 4 && !['viral', 'clip'].includes(word))
+      .slice(0, 2)
+      .map((word) => '#' + word);
+    setPublishTitle(cleanTitle);
+    setPublishDescription(cleanTitle + '\n\n¿Qué opinas? 👇');
+    setPublishHashtags(['#JonyClipRD', '#Shorts', '#Reels', '#Viral', ...topicTags].join(' '));
+    setPublishNetworks([]);
+    setPublishClipDraft(clip);
+  };
+
   const deleteProjectFolder = (folderId: string) => {
     setProjects((prev) => {
       const filtered = prev.filter((p) => p.id !== folderId);
@@ -673,12 +696,60 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
         </div>
       )}
       {publishClipDraft && (
-        <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Publicar clip">
-          <div className="max-w-md w-full rounded-2xl bg-[#19112d] border border-fuchsia-400/40 p-5 space-y-4">
-            <h2 className="font-black text-lg">Publicar en mis redes</h2>
-            <p className="text-sm text-slate-200">Clip: {publishClipDraft.title}. Para publicar directamente en YouTube, Facebook, Instagram o TikTok falta conectar y autorizar cada cuenta. Todavía no hay cuentas vinculadas en esta prueba.</p>
-            <button className="w-full rounded-xl bg-cyan-600/30 border border-cyan-500/50 px-4 py-3 font-bold" onClick={() => {const clip=publishClipDraft;setPublishClipDraft(null);void shareClip(clip.downloadUrl,clip.title);}}>Compartir manualmente desde el teléfono</button>
-            <button className="w-full rounded-xl bg-white/10 px-4 py-3" onClick={() => setPublishClipDraft(null)}>Cerrar</button>
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Preparar publicación">
+          <div className="max-w-lg w-full max-h-[90dvh] overflow-y-auto rounded-2xl bg-[#19112d] border border-fuchsia-400/40 p-5 space-y-4">
+            <h2 className="font-black text-lg">Preparar publicación en mis redes</h2>
+            <p className="text-xs text-slate-300">
+              Video vertical con sus subtítulos incluidos. Revisa el título, la descripción y los hashtags antes de publicar.
+            </p>
+            <div className="space-y-1">
+              <label htmlFor="publish-title" className="block text-sm font-semibold">Título del video</label>
+              <input id="publish-title" type="text" value={publishTitle} maxLength={100}
+                onChange={(e) => setPublishTitle(e.target.value)}
+                className="w-full bg-black/35 border border-white/20 rounded-xl px-3 py-2.5 text-white" />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="publish-description" className="block text-sm font-semibold">Descripción</label>
+              <textarea id="publish-description" rows={3} value={publishDescription}
+                onChange={(e) => setPublishDescription(e.target.value)}
+                className="w-full bg-black/35 border border-white/20 rounded-xl px-3 py-2.5 text-white" />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="publish-hashtags" className="block text-sm font-semibold">Hashtags</label>
+              <textarea id="publish-hashtags" rows={2} value={publishHashtags}
+                onChange={(e) => setPublishHashtags(e.target.value)}
+                className="w-full bg-black/35 border border-white/20 rounded-xl px-3 py-2.5 text-white" />
+            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold">¿Dónde quieres publicar?</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {['YouTube Shorts', 'Facebook Reels', 'Instagram Reels', 'TikTok'].map((network) => (
+                  <label key={network} className="text-xs rounded-lg bg-white/5 border border-white/15 px-3 py-2.5 flex items-center gap-2">
+                    <input type="checkbox" className="accent-fuchsia-500"
+                      checked={publishNetworks.includes(network)}
+                      onChange={(e) => setPublishNetworks((prev) => e.target.checked ? [...prev, network] : prev.filter((n) => n !== network))} />
+                    {network}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <p className="text-xs text-amber-200 border border-amber-400/30 rounded-lg bg-amber-400/10 p-3">
+              Publicación automática todavía no disponible: faltan autorizaciones OAuth oficiales para cada cuenta. Seleccionar una red aquí NO publica el video.
+            </p>
+            <button type="button" disabled className="w-full rounded-xl bg-fuchsia-600/40 px-4 py-3 font-bold opacity-60 cursor-not-allowed">
+              Publicar automáticamente (pendiente de conectar cuentas)
+            </button>
+            <button type="button" className="w-full rounded-xl bg-cyan-600/30 border border-cyan-500/50 px-4 py-3 font-bold"
+              onClick={() => {
+                const clip = publishClipDraft;
+                const caption = [publishTitle.trim(), publishDescription.trim(), publishHashtags.trim()].filter(Boolean).join('\n\n');
+                void navigator.clipboard?.writeText(caption).catch(() => {});
+                setPublishClipDraft(null);
+                void shareClip(clip.downloadUrl, publishTitle || clip.title);
+              }}>
+              Copiar texto y compartir desde el teléfono
+            </button>
+            <button type="button" className="w-full rounded-xl bg-white/10 px-4 py-3" onClick={() => setPublishClipDraft(null)}>Cerrar</button>
           </div>
         </div>
       )}
@@ -1319,7 +1390,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                           <Share2 className="w-3.5 h-3.5" /> Compartir desde el teléfono
                         </button>
                         <button
-                          onClick={() => setPublishClipDraft(clip)}
+                          onClick={() => prepareSocialPost(clip)}
                           className="col-span-2 py-2.5 px-3 rounded-xl bg-fuchsia-500/15 border border-fuchsia-400/40 text-fuchsia-100 text-xs font-bold flex items-center justify-center gap-1.5"
                         >
                           <Upload className="w-3.5 h-3.5" /> Publicar en mis redes
