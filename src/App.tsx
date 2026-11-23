@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Sparkles,
   Download,
+  Share2,
   Check,
   AlertCircle,
   KeyRound,
@@ -575,6 +576,39 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
       // Direct navigation still allows browser-native saving on many phones.
       openOrSave(url, true);
       alert('Si el video se abre en tu teléfono, utiliza Compartir y elige Guardar video o Guardar en Archivos.');
+    }
+  };
+
+  // Native share sheet uses the phone's installed apps. It does not connect
+  // social accounts or publish on behalf of the user.
+  const shareClip = async (url: string, title: string) => {
+    if (!url) {
+      alert('Este clip todavía no tiene un video disponible para compartir.');
+      return;
+    }
+    if (!navigator.share) {
+      alert('Tu navegador no admite compartir directamente. Pulsa MP4 para guardar el video y compártelo desde tu teléfono.');
+      return;
+    }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Video no disponible');
+      const blob = await response.blob();
+      const file = new File([blob], 'JonyClipRD.mp4', { type: 'video/mp4' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: title || 'JONY CLIP RD' });
+        return;
+      }
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return;
+    }
+    // Share URLs only if the browser supports it; never claim the file was posted.
+    try {
+      await navigator.share({ title: title || 'JONY CLIP RD', url });
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        alert('No se pudo compartir. Descarga el MP4 y usa la aplicación de tu red social para publicarlo.');
+      }
     }
   };
 
@@ -1262,6 +1296,12 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                           className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:brightness-110 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-fuchsia-950/50 transition cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5" /> MP4
+                        </button>
+                        <button
+                          onClick={() => shareClip(clip.downloadUrl, clip.title)}
+                          className="col-span-2 py-2.5 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-100 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                        >
+                          <Share2 className="w-3.5 h-3.5" /> Compartir desde el teléfono
                         </button>
                       </div>
                     </div>
