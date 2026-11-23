@@ -547,11 +547,11 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
     try {
       const clipUrl = new URL(url, window.location.href);
       // Keep /clips/... URLs for preview. Use the dedicated attachment route for downloads.
-      if (!/^\\/clips\\/[^/]+\\.mp4$/.test(clipUrl.pathname)) {
+      if (!/^\/clips\/[^/]+\.mp4$/.test(clipUrl.pathname)) {
         alert('No se encontró una URL MP4 válida para descargar.');
         return;
       }
-      clipUrl.pathname = clipUrl.pathname.replace(/^\\/clips\\//, '/api/download/');
+      clipUrl.pathname = clipUrl.pathname.replace(/^\/clips\//, '/api/download/');
       const link = document.createElement('a');
       link.href = clipUrl.toString();
       link.download = filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]/g, '') || 'JonyClipRD_9x16.mp4';
