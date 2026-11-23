@@ -1927,6 +1927,27 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                             </button>
                           </div>
 
+                          <div className="flex items-center gap-3 text-xs text-slate-300">
+                            <label className="flex items-center gap-1.5">
+                              Inicio (s)
+                              <input type="number" min={0} max={editingClip.duration} step={0.1}
+                                value={line.start}
+                                onChange={(e) => setEditSubtitles((prev) => prev.map((item, idx) => idx === index ? {
+                                  ...item, start: Math.max(0, Math.min(Number(e.target.value) || 0, item.end - 0.1))
+                                } : item))}
+                                className="w-16 rounded-lg bg-white/10 px-1.5 py-1 text-white border border-white/10" />
+                            </label>
+                            <label className="flex items-center gap-1.5">
+                              Fin (s)
+                              <input type="number" min={0.1} max={editingClip.duration} step={0.1}
+                                value={line.end}
+                                onChange={(e) => setEditSubtitles((prev) => prev.map((item, idx) => idx === index ? {
+                                  ...item, end: Math.max(item.start + 0.1, Math.min(editingClip.duration, Number(e.target.value) || item.end))
+                                } : item))}
+                                className="w-16 rounded-lg bg-white/10 px-1.5 py-1 text-white border border-white/10" />
+                            </label>
+                          </div>
+
                           <div className="flex flex-wrap items-center gap-1.5 pl-1">
                             {lineWords.map((w, wIdx) => {
                               const ov = line.wordOverrides?.[wIdx];
