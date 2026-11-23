@@ -543,14 +543,39 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
     }
   };
 
-  const triggerDirectDownload = (url: string, filename: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]/g, '') || 'JonyClipRD_9x16.mp4';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  // On mobile browsers, remote URLs with the download attribute may open
+  // instead of saving. Prefer a same-origin Blob URL and fall back to opening
+  // the original MP4 (iOS users can then use Share > Save Video/Files).
+  const triggerDirectDownload = async (url: string, filename: string) => {
+    const safeName = filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _.-]/g, '') || 'JonyClipRD_9x16.mp4';
+    const openOrSave = (href: string, forceNewTab = false) => {
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = safeName;
+      if (forceNewTab) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
+    if (!url) {
+      alert('El video todavía no tiene un enlace de descarga.');
+      return;
+    }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const mime = response.headers.get('content-type') || '';
+      if (!mime.includes('video/') && !mime.includes('octet-stream')) throw new Error('Respuesta no es un video');
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      openOrSave(objectUrl);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch {
+      // This commonly happens when the video host does not permit CORS.
+      // Direct navigation still allows browser-native saving on many phones.
+      openOrSave(url, true);
+      alert('Si el video se abre en tu teléfono, utiliza Compartir y elige Guardar video o Guardar en Archivos.');
+    }
   };
 
   const deleteProjectFolder = (folderId: string) => {
