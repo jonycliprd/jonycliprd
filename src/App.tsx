@@ -546,35 +546,26 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
     }
   };
 
-  // Remote cross-origin MP4 URLs are not necessarily downloadable with
-  // <a download> on mobile Safari/Chrome. CORS-enabled blob download is
-  // attempted first; on failure, show honest save instructions in-app.
-  const triggerDirectDownload = async (url: string, filename: string) => {
+  // Preview URLs use /clips/; downloading uses the server-side attachment endpoint.
+  // Chrome on iPhone handles Content-Disposition: attachment without a video-preview tab.
+  const triggerDirectDownload = (url: string, _filename: string) => {
     if (!url) {
       alert('El clip todavía no tiene un enlace de descarga.');
       return;
     }
-    const safeName = filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _.-]/g, '') || 'JonyClipRD_9x16.mp4';
+
     try {
-      const response = await fetch(url, { mode: 'cors' });
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const blob = await response.blob();
-      if (!blob.size || (!blob.type.startsWith('video/') && blob.type !== 'application/octet-stream')) {
-        throw new Error('La respuesta no contiene un MP4 descargable');
+      const clipUrl = new URL(url, window.location.href);
+      if (!/^\/clips\/[^/]+\.mp4$/i.test(clipUrl.pathname)) {
+        alert('La dirección del clip no es válida para descargar.');
+        return;
       }
-      const objectUrl = URL.createObjectURL(new Blob([blob], {type:'video/mp4'}));
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = safeName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-      // Download APIs differ on iOS. Explain where to save if the player opens.
-      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) setDownloadHelpUrl(url);
+      clipUrl.pathname = clipUrl.pathname.replace(/^\/clips\//, '/api/download/');
+      // Navigate straight to the attachment URL. Cross-origin <a download>
+      // and programmatic blob downloads can fail on iOS Chrome.
+      window.location.assign(clipUrl.toString());
     } catch {
-      // Do not silently launch a new tab and call it a download.
-      setDownloadHelpUrl(url);
+      alert('No se pudo preparar la descarga. Inténtalo nuevamente.');
     }
   };
 
