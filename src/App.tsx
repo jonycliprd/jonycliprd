@@ -507,6 +507,23 @@ export function App() {
     );
   };
 
+  // Convert the editable lines (and per-word colors/emojis) into the
+  // actual timed word payload consumed by the backend ASS subtitle renderer.
+  const makeRenderWords = () => {
+    return editSubtitles.flatMap((line) => {
+      const textWords = line.text.trim().split(/\s+/).filter(Boolean);
+      if (!textWords.length || line.end <= line.start) return [];
+      const step = (line.end - line.start) / textWords.length;
+      return textWords.map((word, idx) => ({
+        word,
+        start: Number((line.start + step * idx).toFixed(3)),
+        end: Number((line.start + step * (idx + 1)).toFixed(3)),
+        colorAss: line.wordOverrides?.[idx]?.colorAss || editColorAss,
+        emoji: editEnableEmojis ? (line.wordOverrides?.[idx]?.emoji ?? line.emoji ?? '') : ''
+      }));
+    });
+  };
+
   const handleApplyCapCutChanges = async (shouldDownloadAfter = false) => {
     if (!editingClip || !activeProject) return;
     setIsRenderingEdit(true);
@@ -525,6 +542,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
           hookTitle: editingClip.hookTitle || editingClip.title,
           rawVideoUrl: editingClip.rawVideoUrl || editingClip.downloadUrl,
           subtitles: editSubtitles,
+          customWords: makeRenderWords(),
           subtitleStyle: editStyleId,
           activeColorAss: editColorAss,
           enableEmojis: editEnableEmojis,
@@ -564,7 +582,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
         )
       );
       setEditingClip(updatedClip);
-      setRenderSuccessNotice('¡Subtítulos, colores y emojis aplicados al video en tiempo real!');
+      setRenderSuccessNotice('¡El MP4 actualizado se generó con tus cambios!');
 
       if (shouldDownloadAfter) {
         triggerDirectDownload(cacheBustedUrl, `${updatedClip.title}.mp4`);
@@ -1965,7 +1983,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   >
                     <Wand2 className="w-4 h-4" />
                     <span>
-                      {isRenderingEdit ? 'Aplicando en 3s...' : 'Aplicar Cambios en Vivo'}
+                      {isRenderingEdit ? 'Renderizando MP4...' : 'Aplicar y generar MP4'}
                     </span>
                   </button>
 
