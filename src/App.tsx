@@ -1258,6 +1258,10 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </div>
               </div>
 
+              <p className="text-xs text-amber-200 bg-amber-500/10 border border-amber-400/30 rounded-xl px-4 py-3">
+                ⏳ Los videos MP4 se eliminan automáticamente 48 horas después de generarse para ahorrar almacenamiento. Descárgalos antes de que expiren. Las carpetas pueden permanecer visibles aunque el video haya caducado.
+              </p>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {activeProject.clips.map((clip) => (
                   <div
