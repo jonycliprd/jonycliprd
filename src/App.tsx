@@ -221,6 +221,8 @@ export function App() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(true);
   const [isRenderingEdit, setIsRenderingEdit] = useState<boolean>(false);
   const [renderSuccessNotice, setRenderSuccessNotice] = useState<string>('');
+  const [publishClipDraft, setPublishClipDraft] = useState<ClipItem | null>(null);
+  const [downloadHelpUrl, setDownloadHelpUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -544,38 +546,35 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
     }
   };
 
-  // On mobile browsers, remote URLs with the download attribute may open
-  // instead of saving. Prefer a same-origin Blob URL and fall back to opening
-  // the original MP4 (iOS users can then use Share > Save Video/Files).
+  // Remote cross-origin MP4 URLs are not necessarily downloadable with
+  // <a download> on mobile Safari/Chrome. CORS-enabled blob download is
+  // attempted first; on failure, show honest save instructions in-app.
   const triggerDirectDownload = async (url: string, filename: string) => {
+    if (!url) {
+      alert('El clip todavía no tiene un enlace de descarga.');
+      return;
+    }
     const safeName = filename.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _.-]/g, '') || 'JonyClipRD_9x16.mp4';
-    const openOrSave = (href: string, forceNewTab = false) => {
+    try {
+      const response = await fetch(url, { mode: 'cors' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const blob = await response.blob();
+      if (!blob.size || (!blob.type.startsWith('video/') && blob.type !== 'application/octet-stream')) {
+        throw new Error('La respuesta no contiene un MP4 descargable');
+      }
+      const objectUrl = URL.createObjectURL(new Blob([blob], {type:'video/mp4'}));
       const a = document.createElement('a');
-      a.href = href;
+      a.href = objectUrl;
       a.download = safeName;
-      if (forceNewTab) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
       document.body.appendChild(a);
       a.click();
       a.remove();
-    };
-    if (!url) {
-      alert('El video todavía no tiene un enlace de descarga.');
-      return;
-    }
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const mime = response.headers.get('content-type') || '';
-      if (!mime.includes('video/') && !mime.includes('octet-stream')) throw new Error('Respuesta no es un video');
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      openOrSave(objectUrl);
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      // Download APIs differ on iOS. Explain where to save if the player opens.
+      if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) setDownloadHelpUrl(url);
     } catch {
-      // This commonly happens when the video host does not permit CORS.
-      // Direct navigation still allows browser-native saving on many phones.
-      openOrSave(url, true);
-      alert('Si el video se abre en tu teléfono, utiliza Compartir y elige Guardar video o Guardar en Archivos.');
+      // Do not silently launch a new tab and call it a download.
+      setDownloadHelpUrl(url);
     }
   };
 
@@ -671,6 +670,27 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
 
   return (
     <div className="min-h-screen bg-[#070510] text-white font-sans selection:bg-fuchsia-500 selection:text-white">
+
+      {downloadHelpUrl && (
+        <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Guardar MP4">
+          <div className="max-w-md w-full rounded-2xl bg-[#19112d] border border-fuchsia-400/40 p-5 space-y-4">
+            <h2 className="font-black text-lg">Guardar el MP4 en tu teléfono</h2>
+            <p className="text-sm text-slate-200">Si no aparece en Descargas, toca «Abrir video». En el reproductor usa Compartir → Guardar video o Guardar en Archivos. El navegador puede mostrar el video antes de guardarlo.</p>
+            <a href={downloadHelpUrl} className="block text-center rounded-xl bg-fuchsia-600 px-4 py-3 font-bold" target="_blank" rel="noopener noreferrer">Abrir video para guardar</a>
+            <button className="w-full rounded-xl bg-white/10 px-4 py-3" onClick={() => setDownloadHelpUrl(null)}>Cerrar</button>
+          </div>
+        </div>
+      )}
+      {publishClipDraft && (
+        <div className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Publicar clip">
+          <div className="max-w-md w-full rounded-2xl bg-[#19112d] border border-fuchsia-400/40 p-5 space-y-4">
+            <h2 className="font-black text-lg">Publicar en mis redes</h2>
+            <p className="text-sm text-slate-200">Clip: {publishClipDraft.title}. Para publicar directamente en YouTube, Facebook, Instagram o TikTok falta conectar y autorizar cada cuenta. Todavía no hay cuentas vinculadas en esta prueba.</p>
+            <button className="w-full rounded-xl bg-cyan-600/30 border border-cyan-500/50 px-4 py-3 font-bold" onClick={() => {const clip=publishClipDraft;setPublishClipDraft(null);void shareClip(clip.downloadUrl,clip.title);}}>Compartir manualmente desde el teléfono</button>
+            <button className="w-full rounded-xl bg-white/10 px-4 py-3" onClick={() => setPublishClipDraft(null)}>Cerrar</button>
+          </div>
+        </div>
+      )}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0818]/95 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
           <div
@@ -1295,13 +1315,19 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                           onClick={() => triggerDirectDownload(clip.downloadUrl, `${clip.title}.mp4`)}
                           className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:brightness-110 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-fuchsia-950/50 transition cursor-pointer"
                         >
-                          <Download className="w-3.5 h-3.5" /> MP4
+                          <Download className="w-3.5 h-3.5" /> Descargar MP4
                         </button>
                         <button
                           onClick={() => shareClip(clip.downloadUrl, clip.title)}
                           className="col-span-2 py-2.5 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-100 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                         >
                           <Share2 className="w-3.5 h-3.5" /> Compartir desde el teléfono
+                        </button>
+                        <button
+                          onClick={() => setPublishClipDraft(clip)}
+                          className="col-span-2 py-2.5 px-3 rounded-xl bg-fuchsia-500/15 border border-fuchsia-400/40 text-fuchsia-100 text-xs font-bold flex items-center justify-center gap-1.5"
+                        >
+                          <Upload className="w-3.5 h-3.5" /> Publicar en mis redes
                         </button>
                       </div>
                     </div>
