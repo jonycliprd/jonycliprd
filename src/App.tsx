@@ -36,9 +36,6 @@ import {
   Scissors,
   MoreVertical,
   Send,
-  Instagram,
-  Youtube,
-  Facebook,
   Globe2
 } from 'lucide-react';
 
@@ -168,10 +165,10 @@ const COLOR_SWATCHES = [
 ];
 
 const SOCIAL_NETWORKS = [
-  { id: 'instagram', name: 'Instagram', format: 'Reels', icon: Instagram, color: 'text-pink-300', site: 'https://www.instagram.com/' },
+  { id: 'instagram', name: 'Instagram', format: 'Reels', icon: Clapperboard, color: 'text-pink-300', site: 'https://www.instagram.com/' },
   { id: 'tiktok', name: 'TikTok', format: 'Videos', icon: Globe2, color: 'text-cyan-300', site: 'https://www.tiktok.com/' },
-  { id: 'facebook', name: 'Facebook', format: 'Reels', icon: Facebook, color: 'text-blue-300', site: 'https://www.facebook.com/' },
-  { id: 'youtube', name: 'YouTube', format: 'Shorts', icon: Youtube, color: 'text-red-300', site: 'https://www.youtube.com/' }
+  { id: 'facebook', name: 'Facebook', format: 'Reels', icon: Film, color: 'text-blue-300', site: 'https://www.facebook.com/' },
+  { id: 'youtube', name: 'YouTube', format: 'Shorts', icon: Play, color: 'text-red-300', site: 'https://www.youtube.com/' }
 ] as const;
 
 const QUICK_EMOJIS = ['🔥', '💰', '🚀', '😱', '💯', '⚡', '😂', '👑', '🎯', '🤯', '❤️', '✨'];
