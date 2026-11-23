@@ -729,6 +729,38 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
           </div>
         </div>
       )}
+      {showSocialConnections && (
+        <div className="fixed inset-0 z-[110] bg-black/85 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Mis redes sociales">
+          <div className="max-w-lg w-full max-h-[90dvh] overflow-y-auto rounded-2xl bg-[#19112d] border border-fuchsia-400/40 p-5 space-y-4">
+            <h2 className="font-black text-lg flex items-center gap-2"><Share2 className="w-5 h-5 text-fuchsia-300" /> Mis redes sociales</h2>
+            <p className="text-sm text-slate-300">Aquí podrás vincular tus cuentas para publicar en varios destinos con una sola confirmación.</p>
+            <div className="space-y-2">
+              {SOCIAL_NETWORKS.map((network) => {
+                const Icon = network.icon;
+                return (
+                  <div key={network.id} className="flex items-center justify-between gap-3 bg-black/35 border border-white/10 rounded-xl px-3 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon className={`w-6 h-6 shrink-0 ${network.color}`} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold">{network.name}</p>
+                        <p className="text-[11px] text-amber-200">Sin vincular · OAuth pendiente</p>
+                      </div>
+                    </div>
+                    <a href={network.site} target="_blank" rel="noopener noreferrer"
+                       className="shrink-0 px-2.5 py-2 text-xs rounded-lg bg-white/10 border border-white/15 text-slate-100">
+                      Abrir web ↗
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-amber-200 bg-amber-400/10 border border-amber-400/25 rounded-xl p-3">
+              Abrir una red no vincula tu cuenta. La vinculación segura necesita permisos y autorización oficial de cada plataforma. No te pediremos contraseñas.
+            </p>
+            <button className="w-full rounded-xl bg-white/10 px-4 py-3 font-bold" onClick={() => setShowSocialConnections(false)}>Cerrar</button>
+          </div>
+        </div>
+      )}
       {publishClipDraft && (
         <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Preparar publicación">
           <div className="max-w-lg w-full max-h-[90dvh] overflow-y-auto rounded-2xl bg-[#19112d] border border-fuchsia-400/40 p-5 space-y-4">
@@ -754,17 +786,21 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 onChange={(e) => setPublishHashtags(e.target.value)}
                 className="w-full bg-black/35 border border-white/20 rounded-xl px-3 py-2.5 text-white" />
             </div>
+            <button type="button" onClick={() => setShowSocialConnections(true)} className="text-sm font-bold text-cyan-200 underline underline-offset-2">Administrar mis redes sociales</button>
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">¿Dónde quieres publicar?</legend>
               <div className="grid grid-cols-2 gap-2">
-                {['YouTube Shorts', 'Facebook Reels', 'Instagram Reels', 'TikTok'].map((network) => (
+                {SOCIAL_NETWORKS.map((item) => {
+                  const network = item.name + ' ' + item.format;
+                  const Icon = item.icon;
+                  return (
                   <label key={network} className="text-xs rounded-lg bg-white/5 border border-white/15 px-3 py-2.5 flex items-center gap-2">
                     <input type="checkbox" className="accent-fuchsia-500"
                       checked={publishNetworks.includes(network)}
                       onChange={(e) => setPublishNetworks((prev) => e.target.checked ? [...prev, network] : prev.filter((n) => n !== network))} />
-                    {network}
+                    <Icon className={`w-4 h-4 ${item.color}`} /> {network}
                   </label>
-                ))}
+                )})}
               </div>
             </fieldset>
             <p className="text-xs text-amber-200 border border-amber-400/30 rounded-lg bg-amber-400/10 p-3">
