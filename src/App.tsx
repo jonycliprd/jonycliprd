@@ -30,7 +30,16 @@ import {
   ChevronLeft,
   Wand2,
   Smile,
-  Palette
+  Palette,
+  ThumbsUp,
+  ThumbsDown,
+  Scissors,
+  MoreVertical,
+  Send,
+  Instagram,
+  Youtube,
+  Facebook,
+  Globe2
 } from 'lucide-react';
 
 interface WordOverride {
@@ -158,6 +167,13 @@ const COLOR_SWATCHES = [
   { label: 'Blanco Puro', hex: '#FFFFFF', ass: '&H00FFFFFF' }
 ];
 
+const SOCIAL_NETWORKS = [
+  { id: 'instagram', name: 'Instagram', format: 'Reels', icon: Instagram, color: 'text-pink-300', site: 'https://www.instagram.com/' },
+  { id: 'tiktok', name: 'TikTok', format: 'Videos', icon: Globe2, color: 'text-cyan-300', site: 'https://www.tiktok.com/' },
+  { id: 'facebook', name: 'Facebook', format: 'Reels', icon: Facebook, color: 'text-blue-300', site: 'https://www.facebook.com/' },
+  { id: 'youtube', name: 'YouTube', format: 'Shorts', icon: Youtube, color: 'text-red-300', site: 'https://www.youtube.com/' }
+] as const;
+
 const QUICK_EMOJIS = ['🔥', '💰', '🚀', '😱', '💯', '⚡', '😂', '👑', '🎯', '🤯', '❤️', '✨'];
 
 const API_BASE =
@@ -228,6 +244,11 @@ export function App() {
   const [publishNetworks, setPublishNetworks] = useState<string[]>([]);
 
   const [downloadHelpUrl, setDownloadHelpUrl] = useState<string | null>(null);
+  const [showSocialConnections, setShowSocialConnections] = useState(false);
+  const [clipFeedback, setClipFeedback] = useState<Record<string, 'like' | 'dislike'>>(() => {
+    try { return JSON.parse(localStorage.getItem('jonycliprd_clip_feedback_v1') || '{}'); } catch { return {}; }
+  });
+  const [clipActionMenu, setClipActionMenu] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -237,6 +258,10 @@ export function App() {
       localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(projects));
     } catch {}
   }, [projects]);
+
+  useEffect(() => {
+    try { localStorage.setItem('jonycliprd_clip_feedback_v1', JSON.stringify(clipFeedback)); } catch {}
+  }, [clipFeedback]);
 
   useEffect(() => {
     if (!activeProjectId && projects.length > 0) {
@@ -605,6 +630,15 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
         alert('No se pudo compartir. Descarga el MP4 y usa la aplicación de tu red social para publicarlo.');
       }
     }
+  };
+
+  const reactToClip = (clipId: string, feedback: 'like' | 'dislike') => {
+    setClipFeedback((prev) => {
+      const next = { ...prev };
+      if (next[clipId] === feedback) delete next[clipId];
+      else next[clipId] = feedback;
+      return next;
+    });
   };
 
   // Prepare the post with a real title, description and hashtags. Publishing
@@ -1360,40 +1394,63 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       </div>
                     </div>
 
-                    <div className="p-4 flex-1 flex flex-col justify-between gap-3">
+                    <div className="px-4 pt-4 pb-4 flex-1 flex flex-col gap-3 bg-[#0a0814]">
                       <div>
-                        <h3 className="font-bold text-sm text-white line-clamp-2">{clip.title}</h3>
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          Estilo: <span className="text-fuchsia-300 font-semibold uppercase">{clip.subtitleStyle}</span> •{' '}
-                          {clip.subtitles?.length || 0} líneas
+                        <h3 className="font-extrabold text-[19px] leading-snug text-white line-clamp-2">
+                          {clip.hookTitle?.trim() || clip.title}
+                        </h3>
+                        <p className="text-[11px] text-slate-400 mt-1.5">
+                          <span className="text-fuchsia-300 font-semibold uppercase">{clip.subtitleStyle}</span>
+                          {' · '}{clip.subtitles?.length || 0} líneas de subtítulos
                         </p>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <button
-                          onClick={() => openCapCutEditor(clip)}
-                          className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-fuchsia-600/30 border border-fuchsia-400/30 text-fuchsia-200 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                        >
-                          <Type className="w-3.5 h-3.5" /> Editar CapCut
-                        </button>
-
-                        <button
+                      <div className="flex items-center justify-between border-y border-white/10 py-2 gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" title="Me gusta" aria-label="Me gusta" aria-pressed={clipFeedback[String(clip.id)] === 'like'}
+                            onClick={() => reactToClip(String(clip.id), 'like')}
+                            className={`p-2.5 rounded-xl border ${clipFeedback[String(clip.id)] === 'like' ? 'bg-fuchsia-500/25 text-fuchsia-200 border-fuchsia-400/50' : 'text-slate-200 bg-white/5 border-white/10'}`}>
+                            <ThumbsUp className="w-5 h-5" />
+                          </button>
+                          <button type="button" title="No me gusta" aria-label="No me gusta" aria-pressed={clipFeedback[String(clip.id)] === 'dislike'}
+                            onClick={() => reactToClip(String(clip.id), 'dislike')}
+                            className={`p-2.5 rounded-xl border ${clipFeedback[String(clip.id)] === 'dislike' ? 'bg-rose-500/20 text-rose-200 border-rose-400/50' : 'text-slate-200 bg-white/5 border-white/10'}`}>
+                            <ThumbsDown className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" title="Editar clip" aria-label="Editar clip"
+                            onClick={() => openCapCutEditor(clip)} className="p-2.5 rounded-xl text-slate-200 bg-white/5 border border-white/10">
+                            <Scissors className="w-5 h-5" />
+                          </button>
+                          <button type="button" title="Más acciones" aria-label="Más acciones"
+                            aria-expanded={clipActionMenu === String(clip.id)}
+                            onClick={() => setClipActionMenu((prev) => prev === String(clip.id) ? null : String(clip.id))}
+                            className="p-2.5 rounded-xl text-slate-200 bg-white/5 border border-white/10">
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                      {clipActionMenu === String(clip.id) && (
+                        <div className="flex flex-wrap gap-2 p-2 rounded-xl bg-white/5 border border-white/10">
+                          <button type="button" onClick={() => { setClipActionMenu(null); triggerDirectDownload(clip.downloadUrl, `${clip.title}.mp4`); }}
+                            className="px-3 py-2 text-xs font-bold rounded-lg bg-purple-600/25 border border-purple-400/30 flex items-center gap-1.5">
+                            <Download className="w-4 h-4" /> Descargar MP4
+                          </button>
+                          <button type="button" onClick={() => { setClipActionMenu(null); void shareClip(clip.downloadUrl, clip.title); }}
+                            className="px-3 py-2 text-xs font-bold rounded-lg bg-cyan-600/15 border border-cyan-400/30 flex items-center gap-1.5">
+                            <Share2 className="w-4 h-4" /> Compartir
+                          </button>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-[54px_minmax(0,1fr)] gap-2.5 mt-auto">
+                        <button type="button" aria-label="Descargar MP4" title="Descargar MP4"
                           onClick={() => triggerDirectDownload(clip.downloadUrl, `${clip.title}.mp4`)}
-                          className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:brightness-110 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-fuchsia-950/50 transition cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" /> Descargar MP4
+                          className="rounded-2xl border border-white/20 bg-white/5 flex items-center justify-center text-slate-100 min-h-[54px]">
+                          <Download className="w-6 h-6" />
                         </button>
-                        <button
-                          onClick={() => shareClip(clip.downloadUrl, clip.title)}
-                          className="col-span-2 py-2.5 px-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-100 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                        >
-                          <Share2 className="w-3.5 h-3.5" /> Compartir desde el teléfono
-                        </button>
-                        <button
-                          onClick={() => prepareSocialPost(clip)}
-                          className="col-span-2 py-2.5 px-3 rounded-xl bg-fuchsia-500/15 border border-fuchsia-400/40 text-fuchsia-100 text-xs font-bold flex items-center justify-center gap-1.5"
-                        >
-                          <Upload className="w-3.5 h-3.5" /> Publicar en mis redes
+                        <button type="button" onClick={() => prepareSocialPost(clip)}
+                          className="rounded-2xl bg-[#938cff] hover:bg-[#aaa4ff] text-[#101024] font-extrabold text-base flex items-center justify-center gap-3 min-h-[54px]">
+                          <Send className="w-6 h-6" /> Publicar
                         </button>
                       </div>
                     </div>
