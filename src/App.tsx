@@ -276,10 +276,8 @@ export function App() {
           channelTitle: typeof me.user?.channel?.title === 'string' ? me.user.channel.title : undefined
         });
       } catch {
-        // Fail closed if Railway is unreachable or cannot verify the session.
-        if (!controller.signal.aborted) {
-          setYoutubeConnection({ ready: false, connected: false, loading: false });
-        }
+        // Fail closed on network errors and timeouts; only ignore unmount cleanup.
+        setYoutubeConnection({ ready: false, connected: false, loading: false });
       } finally {
         clearTimeout(timeout);
       }
