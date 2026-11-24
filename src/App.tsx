@@ -190,7 +190,7 @@ const formatMMSS = (sec: number) => {
 };
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans' | 'social'>('create');
   const [inputMode, setInputMode] = useState<'link' | 'upload'>('link');
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -826,7 +826,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 onChange={(e) => setPublishHashtags(e.target.value)}
                 className="w-full bg-black/35 border border-white/20 rounded-xl px-3 py-2.5 text-white" />
             </div>
-            <button type="button" onClick={() => setShowSocialConnections(true)} className="text-sm font-bold text-cyan-200 underline underline-offset-2">Administrar mis redes sociales</button>
+            <button type="button" onClick={() => { setPublishClipDraft(null); setActiveTab('social'); }} className="text-sm font-bold text-cyan-200 underline underline-offset-2">Administrar mis redes sociales</button>
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold">¿Dónde quieres publicar?</legend>
               <div className="grid grid-cols-2 gap-2">
@@ -925,6 +925,15 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
             </button>
 
             <button
+              onClick={() => setActiveTab('social')}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition ${activeTab === 'social'
+                ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+              >
+              <Share2 className="w-4 h-4" /> Mis Redes
+            </button>
+
+            <button
               onClick={() => setActiveTab('plans')}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition ${
                 activeTab === 'plans'
@@ -978,6 +987,12 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
           className={`px-3 py-1.5 rounded-lg font-semibold ${activeTab === 'folders' ? 'bg-fuchsia-600' : 'text-slate-400'}`}
         >
           Carpetas ({projects.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('social')}
+          className={`px-3 py-1.5 rounded-lg font-semibold ${activeTab === 'social' ? 'bg-fuchsia-600 text-white' : 'text-slate-400'}`}
+        >
+          Mis Redes
         </button>
       </div>
 
@@ -1625,6 +1640,61 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               ))}
             </div>
           )}
+        </main>
+      )}
+
+
+      {activeTab === 'social' && (
+        <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#1b1339] via-[#110e26] to-[#0d1725] p-5 sm:p-8">
+            <div className="flex gap-3 items-center mb-4">
+              <span className="p-3 rounded-2xl bg-fuchsia-500/20"><Share2 className="w-6 h-6 text-fuchsia-200" /></span>
+              <div>
+                <p className="text-[11px] font-black tracking-[0.16em] text-fuchsia-300 uppercase">Jony Clip RD Studio</p>
+                <h1 className="text-2xl sm:text-3xl font-black">Mis redes sociales</h1>
+              </div>
+            </div>
+            <p className="text-sm text-slate-300 max-w-2xl">
+              Aquí podrás administrar las cuentas que autorices para publicar clips con título, subtítulos y hashtags.
+              Las conexiones automáticas todavía están en preparación; ninguna red está vinculada en esta versión.
+            </p>
+            <div className="mt-5 grid sm:grid-cols-2 gap-3">
+              {SOCIAL_NETWORKS.map((network) => {
+                const Icon = network.icon;
+                return (
+                  <div key={network.id} className="rounded-2xl bg-black/30 border border-white/10 p-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10"><Icon className={`h-6 w-6 ${network.color}`} /></div>
+                      <div>
+                        <h2 className="font-extrabold text-white">{network.name}</h2>
+                        <p className="text-xs text-slate-400">{network.format} · Sin vincular</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-200">Pendiente de OAuth y autorización de la plataforma.</p>
+                    <div className="flex gap-2 mt-auto">
+                      <button type="button" disabled title="Conexión segura pendiente de configurar"
+                        className="flex-1 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2.5 text-xs font-bold text-fuchsia-200 opacity-60 cursor-not-allowed">
+                        Conectar cuenta · Próximamente
+                      </button>
+                      <a href={network.site} target="_blank" rel="noopener noreferrer"
+                        className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-bold text-slate-200">
+                        Abrir <ExternalLink className="inline h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-[#14101f] p-5 space-y-3">
+            <h2 className="font-bold text-lg">Cómo funcionará publicar automáticamente</h2>
+            <p className="text-sm text-slate-300">Cada usuario iniciará sesión con el proveedor oficial, elegirá qué cuenta autorizar y podrá revocarla. Al tocar «Publicar», el sistema enviará únicamente a las redes que seleccione y mostrará el resultado por separado.</p>
+            <p className="text-xs text-amber-200">Importante: abrir la web de una red no vincula la cuenta. Nunca introduzcas contraseñas de redes sociales directamente en JONY CLIP RD.</p>
+            <button type="button" onClick={() => setActiveTab('studio')}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white font-bold text-sm">
+              Volver a mis clips
+            </button>
+          </div>
         </main>
       )}
 
