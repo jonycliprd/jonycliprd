@@ -246,6 +246,55 @@ export function App() {
 
   const [downloadHelpUrl, setDownloadHelpUrl] = useState<string | null>(null);
   const [showSocialConnections, setShowSocialConnections] = useState(false);
+  // The server, not this browser, decides whether Google OAuth is ready.
+  const [youtubeConnection, setYoutubeConnection] = useState<{
+    ready: boolean; connected: boolean; loading: boolean; email?: string;
+  }>({ ready: false, connected: false, loading: true });
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const checkYoutubeConnection = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/connections/providers`, {
+          signal: controller.signal, cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('Provider status unavailable');
+        const providers = await response.json();
+        const ready = providers?.providers?.youtube?.connectEnabled === true;
+        if (!ready) {
+          setYoutubeConnection({ ready: false, connected: false, loading: false });
+          return;
+        }
+        const meResponse = await fetch(`${API_BASE}/api/auth/youtube/me`, {
+          credentials: 'include', signal: controller.signal, cache: 'no-store'
+        });
+        if (!meResponse.ok) throw new Error('Session status unavailable');
+        const me = await meResponse.json();
+        setYoutubeConnection({
+          ready: true, connected: me.connected === true, loading: false,
+          email: typeof me.user?.email === 'string' ? me.user.email : undefined
+        });
+      } catch {
+        // Fail closed if Railway is unreachable or cannot verify the session.
+        if (!controller.signal.aborted) {
+          setYoutubeConnection({ ready: false, connected: false, loading: false });
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+    void checkYoutubeConnection();
+    return () => { clearTimeout(timeout); controller.abort(); };
+  }, []);
+  const youtubeConnectionLabel = youtubeConnection.connected
+    ? 'YouTube conectado' : youtubeConnection.ready ? 'Conectar con Google'
+      : youtubeConnection.loading ? 'Comprobando conexión…' : 'Conectar cuenta · Próximamente';
+  const beginYoutubeConnection = () => {
+    if (youtubeConnection.ready && !youtubeConnection.connected) {
+      window.location.assign(`${API_BASE}/api/auth/youtube/start`);
+    }
+  };
+
   const [clipFeedback, setClipFeedback] = useState<Record<string, 'like' | 'dislike'>>(() => {
     try { return JSON.parse(localStorage.getItem('jonycliprd_clip_feedback_v1') || '{}'); } catch { return {}; }
   });
@@ -783,7 +832,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       <Icon className={`w-6 h-6 shrink-0 ${network.color}`} />
                       <div className="min-w-0">
                         <p className="text-sm font-bold">{network.name}</p>
-                        <p className="text-[11px] text-amber-200">Sin vincular · OAuth pendiente</p>
+                        <p className="text-[11px] text-amber-200">{network.id === 'youtube' && youtubeConnection.connected
+                          ? 'Cuenta Google autorizada · Publicación pendiente' : 'Sin vincular · OAuth pendiente'}</p>
                       </div>
                     </div>
                     <a href={network.site} target="_blank" rel="noopener noreferrer"
@@ -1667,14 +1717,21 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       <div className="p-3 rounded-xl bg-white/5 border border-white/10"><Icon className={`h-6 w-6 ${network.color}`} /></div>
                       <div>
                         <h2 className="font-extrabold text-white">{network.name}</h2>
-                        <p className="text-xs text-slate-400">{network.format} · Sin vincular</p>
+                        <p className="text-xs text-slate-400">{network.format} · {network.id === 'youtube' && youtubeConnection.connected ? 'Google autorizado' : 'Sin vincular'}</p>
                       </div>
                     </div>
-                    <p className="text-xs text-amber-200">Pendiente de OAuth y autorización de la plataforma.</p>
+                    <p className="text-xs text-amber-200">{network.id === 'youtube' && youtubeConnection.connected
+                      ? 'Cuenta Google autorizada. Publicar Shorts todavía no está disponible.'
+                      : network.id === 'youtube' && youtubeConnection.ready
+                        ? 'La autorización de Google está disponible; revisa los permisos antes de continuar.'
+                        : 'Pendiente de OAuth y autorización de la plataforma.'}</p>
                     <div className="flex gap-2 mt-auto">
-                      <button type="button" disabled title="Conexión segura pendiente de configurar"
-                        className="flex-1 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2.5 text-xs font-bold text-fuchsia-200 opacity-60 cursor-not-allowed">
-                        Conectar cuenta · Próximamente
+                      <button type="button"
+                        disabled={network.id !== 'youtube' || !youtubeConnection.ready || youtubeConnection.connected}
+                        onClick={network.id === 'youtube' ? beginYoutubeConnection : undefined}
+                        title={network.id === 'youtube' ? 'Autorización oficial de Google cuando esté habilitada' : 'Conexión segura pendiente de configurar'}
+                        className={`flex-1 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2.5 text-xs font-bold text-fuchsia-200 ${network.id !== 'youtube' || !youtubeConnection.ready || youtubeConnection.connected ? 'opacity-60 cursor-not-allowed' : 'hover:bg-fuchsia-500/20'}`}>
+                        {network.id === 'youtube' ? youtubeConnectionLabel : 'Conectar cuenta · Próximamente'}
                       </button>
                       <a href={network.site} target="_blank" rel="noopener noreferrer"
                         className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-bold text-slate-200">
