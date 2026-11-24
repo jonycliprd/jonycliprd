@@ -1660,43 +1660,52 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
       )}
 
       {editingClip && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6">
-          <div className="w-full max-w-6xl max-h-[94vh] rounded-3xl border border-fuchsia-500/40 bg-[#0d091f] overflow-hidden flex flex-col shadow-2xl">
-            <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between bg-[#140e2e]">
-              <div className="flex items-center gap-2.5">
-                <span className="px-2.5 py-1 rounded-lg bg-fuchsia-600 text-xs font-black">CAPCUT STUDIO PRO</span>
-                <h2 className="font-bold text-sm sm:text-base line-clamp-1">{editingClip.title}</h2>
+        <div className="fixed inset-0 z-50 bg-[#05050b]/95 backdrop-blur-xl flex items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Editor de video JONY CLIP RD">
+          <div className="w-full max-w-7xl h-[100dvh] sm:h-auto sm:max-h-[96dvh] rounded-none sm:rounded-[28px] border-0 sm:border border-white/15 bg-[#0b0c16] overflow-hidden flex flex-col shadow-[0_30px_100px_rgba(0,0,0,0.75)]">
+            <div className="shrink-0 px-4 sm:px-6 py-3.5 border-b border-white/10 flex items-center justify-between gap-3 bg-gradient-to-r from-[#151226] via-[#0f1020] to-[#101625]">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-fuchsia-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-fuchsia-600/20">
+                  <Clapperboard className="w-5 h-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black tracking-[0.2em] uppercase text-fuchsia-300">JONY CLIP RD · VIDEO STUDIO</p>
+                  <h2 className="font-extrabold text-sm sm:text-base text-white truncate">{editingClip.title}</h2>
+                </div>
               </div>
-              <button
-                onClick={() => setEditingClip(null)}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 text-emerald-300 text-[11px] font-bold">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Editor 9:16
+                </span>
+                <button type="button" aria-label="Cerrar editor" title="Cerrar editor"
+                  onClick={() => setEditingClip(null)}
+                  className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/15 text-slate-200">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="border-b border-white/10 bg-[#100c25] p-3 sm:p-4 space-y-3">
+            <div className="shrink-0 order-2 lg:order-1 border-y border-white/10 bg-[#10111e] p-3 sm:p-5 space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-black text-fuchsia-200">LÍNEA DE TIEMPO · EDITOR DE VIDEO</span>
-                <span className="text-xs font-mono text-slate-300">{formatMMSS(currentPreviewTime)} / {formatMMSS(editingClip.duration)}</span>
+                <span className="text-[11px] font-black tracking-[0.14em] text-slate-200 uppercase flex items-center gap-2"><Film className="h-4 w-4 text-fuchsia-400" /> Línea de tiempo <span className="hidden sm:inline text-slate-500">· Video y subtítulos</span></span>
+                <span className="text-xs font-mono tabular-nums text-cyan-200 px-2.5 py-1 rounded-lg bg-black/40 border border-white/10">{formatMMSS(currentPreviewTime)} <span className="text-slate-500">/</span> {formatMMSS(editingClip.duration)}</span>
               </div>
-              <div className="relative rounded-xl border border-white/10 overflow-hidden bg-slate-900">
+              <div className="relative rounded-2xl border border-white/15 overflow-hidden bg-[#090b14] shadow-inner shadow-black/40">
                 <div className="flex h-12">
                   {Array.from({ length: Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4))) }, (_, i) => (
                     <button type="button" key={i} onClick={() => seekInEditor(((i + 0.5) / Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4)))) * editingClip.duration)}
-                      className="flex-1 min-w-0 border-r border-black/40 bg-gradient-to-b from-indigo-700/60 to-fuchsia-800/40 hover:brightness-125"
+                      className="flex-1 min-w-0 border-r border-black/40 bg-gradient-to-b from-slate-500/30 via-violet-700/40 to-indigo-900/60 hover:brightness-125 transition"
                       aria-label={`Ir al segundo ${Math.round(((i + 0.5) / Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4)))) * editingClip.duration)}`}>
                       <Film className="w-4 h-4 mx-auto text-fuchsia-200/70" />
                     </button>
                   ))}
                 </div>
-                <div className="relative h-7 bg-amber-500/10">
+                <div className="relative h-9 bg-[#181420] border-t border-white/10">
                   {editSubtitles.map((line, i) => (
                     <button key={line.id} type="button" title={line.text}
                       onClick={() => { seekInEditor(line.start); setEditorTool('subtitulos'); }}
                       style={{ left: `${Math.max(0, line.start / Math.max(1, editingClip.duration) * 100)}%`,
                         width: `${Math.max(1.5, (line.end - line.start) / Math.max(1, editingClip.duration) * 100)}%` }}
-                      className="absolute top-1 h-5 rounded-sm bg-amber-500/80 border border-amber-200/60 text-[8px] text-black font-bold truncate px-1">
+                      className="absolute top-1.5 h-6 rounded-md bg-amber-400/90 border border-amber-200/70 text-[9px] text-black font-extrabold truncate px-1.5 shadow-sm">
                       {line.text || `Texto ${i + 1}`}
                     </button>
                   ))}
@@ -1709,8 +1718,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               <input type="range" min={editTrimStart} max={Math.max(editTrimStart + 0.1, editingClip.duration - editTrimEnd)} step={0.1}
                 value={Math.max(editTrimStart, Math.min(currentPreviewTime, editingClip.duration - editTrimEnd))}
                 onChange={(e) => seekInEditor(Number(e.target.value))}
-                aria-label="Mover cabezal de reproducción" className="w-full accent-fuchsia-400" />
-              <div className="flex flex-wrap gap-2">
+                aria-label="Mover cabezal de reproducción" className="w-full accent-fuchsia-400 cursor-pointer" />
+              <div className="flex gap-2 overflow-x-auto pb-1 snap-x">
                 {([
                   ['recortar', '✂ Recortar'],
                   ['texto', 'T Texto'],
@@ -1719,7 +1728,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   ['audio', '♫ Audio']
                 ] as const).map(([tool, label]) => (
                   <button key={tool} type="button" onClick={() => setEditorTool(tool)}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold border ${editorTool === tool ? 'bg-fuchsia-600 text-white border-fuchsia-400' : 'bg-white/5 text-slate-300 border-white/15'}`}>
+                    className={`shrink-0 snap-start px-3.5 py-2.5 rounded-xl text-xs font-bold border transition ${editorTool === tool ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white border-fuchsia-400 shadow-lg shadow-purple-500/15' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'}`}>
                     {label}
                   </button>
                 ))}
@@ -1757,9 +1766,9 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto grid lg:grid-cols-12 gap-6 p-5">
-              <div className="lg:col-span-4 flex flex-col items-center justify-center bg-black/60 rounded-2xl p-4 border border-white/10">
-                <div className="relative w-full max-w-[260px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-fuchsia-500/40 shadow-2xl">
+            <div className="order-1 lg:order-2 flex-1 min-h-0 overflow-y-auto grid lg:grid-cols-12 gap-4 sm:gap-5 p-3 sm:p-5 bg-[#0a0b15]">
+              <div className="lg:col-span-4 flex flex-col items-center justify-start bg-[#101322] rounded-2xl p-3 sm:p-5 border border-white/10 shadow-inner shadow-black/30"><div className="w-full flex items-center justify-between gap-2 mb-3"><span className="text-xs font-black tracking-wide text-slate-200 flex items-center gap-2"><Play className="w-4 h-4 text-fuchsia-400" /> VISTA PREVIA</span><span className="text-[10px] font-bold px-2 py-1 bg-emerald-400/10 text-emerald-300 border border-emerald-400/20 rounded-md">9:16 · VERTICAL</span></div>
+                <div className="relative w-full max-w-[230px] lg:max-w-[290px] aspect-[9/16] rounded-xl overflow-hidden bg-black border border-white/20 ring-4 ring-black/40 shadow-2xl">
                   <video
                     key={editingClip.downloadUrl}
                     ref={editorVideoRef}
@@ -1826,7 +1835,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </div>
               </div>
 
-              <div className="lg:col-span-8 space-y-4">
+              <div className="lg:col-span-8 space-y-4 rounded-2xl border border-white/10 bg-[#111320] p-3 sm:p-5"><div className="flex items-center justify-between pb-3 border-b border-white/10"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-300">Propiedades</p><h3 className="font-extrabold text-sm text-white">Personaliza tu clip</h3></div><span className="text-xs font-mono text-slate-400">{editSubtitles.length} líneas</span></div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-black uppercase tracking-wider text-fuchsia-300 flex items-center gap-1.5">
@@ -2100,7 +2109,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   </div>
                 )}
 
-                <div className="pt-1 flex flex-wrap items-center justify-end gap-2.5">
+                <div className="sticky bottom-0 z-10 -mx-3 sm:-mx-5 -mb-3 sm:-mb-5 px-3 sm:px-5 py-3 bg-[#141729]/95 backdrop-blur-xl border-t border-white/15 flex flex-wrap items-center justify-end gap-2.5">
                   <button
                     type="button"
                     onClick={() => setEditingClip(null)}
@@ -2125,7 +2134,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                     type="button"
                     onClick={() => handleApplyCapCutChanges(true)}
                     disabled={isRenderingEdit}
-                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 text-xs sm:text-sm font-black flex items-center gap-2 shadow-xl shadow-fuchsia-600/30 cursor-pointer"
+                    className="px-5 sm:px-6 py-3 rounded-xl bg-gradient-to-r from-fuchsia-500 via-purple-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 text-xs sm:text-sm font-black flex items-center gap-2 shadow-xl shadow-fuchsia-600/30 cursor-pointer"
                   >
                     <Download className="w-4 h-4" />
                     <span>
