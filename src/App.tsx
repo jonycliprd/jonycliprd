@@ -248,7 +248,7 @@ export function App() {
   const [showSocialConnections, setShowSocialConnections] = useState(false);
   // The server, not this browser, decides whether Google OAuth is ready.
   const [youtubeConnection, setYoutubeConnection] = useState<{
-    ready: boolean; connected: boolean; loading: boolean; email?: string;
+    ready: boolean; connected: boolean; loading: boolean; email?: string; channelTitle?: string;
   }>({ ready: false, connected: false, loading: true });
   useEffect(() => {
     const controller = new AbortController();
@@ -272,7 +272,8 @@ export function App() {
         const me = await meResponse.json();
         setYoutubeConnection({
           ready: true, connected: me.connected === true, loading: false,
-          email: typeof me.user?.email === 'string' ? me.user.email : undefined
+          email: typeof me.user?.email === 'string' ? me.user.email : undefined,
+          channelTitle: typeof me.user?.channel?.title === 'string' ? me.user.channel.title : undefined
         });
       } catch {
         // Fail closed if Railway is unreachable or cannot verify the session.
@@ -833,7 +834,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       <div className="min-w-0">
                         <p className="text-sm font-bold">{network.name}</p>
                         <p className="text-[11px] text-amber-200">{network.id === 'youtube' && youtubeConnection.connected
-                          ? 'Cuenta Google autorizada · Publicación pendiente' : 'Sin vincular · OAuth pendiente'}</p>
+                          ? `${youtubeConnection.channelTitle || 'Canal de YouTube'} · Publicación pendiente` : 'Sin vincular · OAuth pendiente'}</p>
                       </div>
                     </div>
                     <a href={network.site} target="_blank" rel="noopener noreferrer"
@@ -1721,7 +1722,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       </div>
                     </div>
                     <p className="text-xs text-amber-200">{network.id === 'youtube' && youtubeConnection.connected
-                      ? 'Cuenta Google autorizada. Publicar Shorts todavía no está disponible.'
+                      ? `Canal: ${youtubeConnection.channelTitle || 'YouTube'}. Publicar Shorts todavía no está disponible.`
                       : network.id === 'youtube' && youtubeConnection.ready
                         ? 'La autorización de Google está disponible; revisa los permisos antes de continuar.'
                         : 'Pendiente de OAuth y autorización de la plataforma.'}</p>
