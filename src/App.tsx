@@ -1682,10 +1682,10 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               </div>
               <div className="relative rounded-xl border border-white/10 overflow-hidden bg-slate-900">
                 <div className="flex h-12">
-                  {Array.from({ length: Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4))) }, (_, i, arr) => (
-                    <button type="button" key={i} onClick={() => seekInEditor(((i + 0.5) / arr.length) * editingClip.duration)}
+                  {Array.from({ length: Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4))) }, (_, i) => (
+                    <button type="button" key={i} onClick={() => seekInEditor(((i + 0.5) / Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4)))) * editingClip.duration)}
                       className="flex-1 min-w-0 border-r border-black/40 bg-gradient-to-b from-indigo-700/60 to-fuchsia-800/40 hover:brightness-125"
-                      aria-label={`Ir al segundo ${Math.round(((i + 0.5) / arr.length) * editingClip.duration)}`}>
+                      aria-label={`Ir al segundo ${Math.round(((i + 0.5) / Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4)))) * editingClip.duration)}`}>
                       <Film className="w-4 h-4 mx-auto text-fuchsia-200/70" />
                     </button>
                   ))}
