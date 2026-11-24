@@ -1743,7 +1743,11 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 <label className="block text-xs rounded-xl bg-white/5 p-3">
                   Volumen del audio original: {editVolume}%
                   <input type="range" min={0} max={200} step={5} value={editVolume}
-                    onChange={(e) => setEditVolume(Number(e.target.value))}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setEditVolume(next);
+                      if (editorVideoRef.current) editorVideoRef.current.volume = Math.min(1, next / 100);
+                    }}
                     className="block w-full accent-cyan-400 mt-2" />
                   <span className="block text-slate-400 mt-2">El volumen se aplicará al MP4 exportado.</span>
                 </label>
@@ -1767,10 +1771,12 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       const t = e.currentTarget.currentTime;
                       if (t >= editingClip.duration - editTrimEnd && !e.currentTarget.paused) {
                         e.currentTarget.currentTime = editTrimStart;
+                        setCurrentPreviewTime(editTrimStart);
+                        return;
                       }
                       setCurrentPreviewTime(t);
                     }}
-                    volume={Math.min(1, editVolume / 100)}
+                    onLoadedMetadata={(e) => { e.currentTarget.volume = Math.min(1, editVolume / 100); }}
                     muted={editVolume === 0}
                     className="w-full h-full object-cover"
                   />
