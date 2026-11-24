@@ -253,6 +253,7 @@ export function App() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorVideoRef = useRef<HTMLVideoElement | null>(null);
+  const editorPropertiesRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     try {
@@ -1727,43 +1728,16 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   ['estilo', '✦ Estilos'],
                   ['audio', '♫ Audio']
                 ] as const).map(([tool, label]) => (
-                  <button key={tool} type="button" onClick={() => setEditorTool(tool)}
+                  <button key={tool} type="button" onClick={() => {
+                      setEditorTool(tool);
+                      editorPropertiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }}
                     className={`shrink-0 snap-start px-3.5 py-2.5 rounded-xl text-xs font-bold border transition ${editorTool === tool ? 'bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white border-fuchsia-400 shadow-lg shadow-purple-500/15' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'}`}>
                     {label}
                   </button>
                 ))}
               </div>
-              {editorTool === 'recortar' && (
-                <div className="grid grid-cols-2 gap-3 text-xs rounded-xl bg-white/5 p-3">
-                  <label>Recortar inicio: {editTrimStart.toFixed(1)} s
-                    <input type="range" min={0} max={Math.max(0, editingClip.duration - editTrimEnd - 2)}
-                      step={0.1} value={editTrimStart} onChange={(e) => { setEditTrimStart(Number(e.target.value)); seekInEditor(Number(e.target.value)); }}
-                      className="block w-full accent-fuchsia-400 mt-2" />
-                  </label>
-                  <label>Recortar final: {editTrimEnd.toFixed(1)} s
-                    <input type="range" min={0} max={Math.max(0, editingClip.duration - editTrimStart - 2)}
-                      step={0.1} value={editTrimEnd} onChange={(e) => setEditTrimEnd(Number(e.target.value))}
-                      className="block w-full accent-fuchsia-400 mt-2" />
-                  </label>
-                  <span className="col-span-2 text-slate-300">Duración final: {formatMMSS(editingClip.duration - editTrimStart - editTrimEnd)}. Pulsa «Guardar y Descargar MP4» para exportar el recorte.</span>
-                </div>
-              )}
-              {editorTool === 'audio' && (
-                <label className="block text-xs rounded-xl bg-white/5 p-3">
-                  Volumen del audio original: {editVolume}%
-                  <input type="range" min={0} max={200} step={5} value={editVolume}
-                    onChange={(e) => {
-                      const next = Number(e.target.value);
-                      setEditVolume(next);
-                      if (editorVideoRef.current) editorVideoRef.current.volume = Math.min(1, next / 100);
-                    }}
-                    className="block w-full accent-cyan-400 mt-2" />
-                  <span className="block text-slate-400 mt-2">El volumen se aplicará al MP4 exportado.</span>
-                </label>
-              )}
-              {(editorTool === 'texto' || editorTool === 'subtitulos' || editorTool === 'estilo') && (
-                <p className="text-[11px] text-slate-300">Usa los controles de texto, tiempos, color y estilo de abajo. Toca un bloque amarillo para posicionarte en su subtítulo.</p>
-              )}
+
             </div>
 
             <div className="order-1 lg:order-2 flex-1 min-h-0 overflow-y-auto grid lg:grid-cols-12 gap-4 sm:gap-5 p-3 sm:p-5 bg-[#0a0b15]">
@@ -1835,7 +1809,38 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </div>
               </div>
 
-              <div className="lg:col-span-8 space-y-4 rounded-2xl border border-white/10 bg-[#111320] p-3 sm:p-5"><div className="flex items-center justify-between pb-3 border-b border-white/10"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-300">Propiedades</p><h3 className="font-extrabold text-sm text-white">Personaliza tu clip</h3></div><span className="text-xs font-mono text-slate-400">{editSubtitles.length} líneas</span></div>
+              <div ref={editorPropertiesRef} className="lg:col-span-8 space-y-4 rounded-2xl border border-white/10 bg-[#111320] p-3 sm:p-5"><div className="flex items-center justify-between pb-3 border-b border-white/10"><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-fuchsia-300">Propiedades</p><h3 className="font-extrabold text-sm text-white">{ editorTool === 'recortar' ? 'Recortar el video' : editorTool === 'texto' ? 'Editar texto y palabras' : editorTool === 'subtitulos' ? 'Editar subtítulos y tiempos' : editorTool === 'estilo' ? 'Estilos y colores' : 'Editar audio' }</h3></div><span className="text-xs font-mono text-slate-400">{editSubtitles.length} líneas</span></div>
+                <p className="text-[11px] text-slate-400">Los cambios se aplican al MP4 al pulsar «Aplicar y generar MP4».</p>
+                              {editorTool === 'recortar' && (
+                <div className="grid grid-cols-2 gap-3 text-xs rounded-xl bg-white/5 p-3">
+                  <label>Recortar inicio: {editTrimStart.toFixed(1)} s
+                    <input type="range" min={0} max={Math.max(0, editingClip.duration - editTrimEnd - 2)}
+                      step={0.1} value={editTrimStart} onChange={(e) => { setEditTrimStart(Number(e.target.value)); seekInEditor(Number(e.target.value)); }}
+                      className="block w-full accent-fuchsia-400 mt-2" />
+                  </label>
+                  <label>Recortar final: {editTrimEnd.toFixed(1)} s
+                    <input type="range" min={0} max={Math.max(0, editingClip.duration - editTrimStart - 2)}
+                      step={0.1} value={editTrimEnd} onChange={(e) => setEditTrimEnd(Number(e.target.value))}
+                      className="block w-full accent-fuchsia-400 mt-2" />
+                  </label>
+                  <span className="col-span-2 text-slate-300">Duración final: {formatMMSS(editingClip.duration - editTrimStart - editTrimEnd)}. Pulsa «Guardar y Descargar MP4» para exportar el recorte.</span>
+                </div>
+              )}
+              {editorTool === 'audio' && (
+                <label className="block text-xs rounded-xl bg-white/5 p-3">
+                  Volumen del audio original: {editVolume}%
+                  <input type="range" min={0} max={200} step={5} value={editVolume}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setEditVolume(next);
+                      if (editorVideoRef.current) editorVideoRef.current.volume = Math.min(1, next / 100);
+                    }}
+                    className="block w-full accent-cyan-400 mt-2" />
+                  <span className="block text-slate-400 mt-2">El volumen se aplicará al MP4 exportado.</span>
+                </label>
+              )}
+
+                {editorTool === 'estilo' && (<>
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-black uppercase tracking-wider text-fuchsia-300 flex items-center gap-1.5">
@@ -1929,6 +1934,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   </div>
                 </div>
 
+                </>)}
+                {(editorTool === 'texto' || editorTool === 'subtitulos') && (<>
                 {selectedWordTarget && editSubtitles[selectedWordTarget.lineIdx] && (
                   <div className="rounded-2xl border border-fuchsia-400/50 bg-fuchsia-500/10 p-3 flex flex-wrap items-center justify-between gap-3">
                     <div className="text-xs font-bold text-fuchsia-200">
@@ -2102,6 +2109,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   </div>
                 </div>
 
+                </>)}
                 {renderSuccessNotice && (
                   <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
