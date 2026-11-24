@@ -228,6 +228,10 @@ export function App() {
   const [editFontSize, setEditFontSize] = useState<number>(48);
   const [editColorAss, setEditColorAss] = useState<string>('&H0000FFFF');
   const [editMarginV, setEditMarginV] = useState<number>(210);
+  const [editTrimStart, setEditTrimStart] = useState(0);
+  const [editTrimEnd, setEditTrimEnd] = useState(0);
+  const [editVolume, setEditVolume] = useState(100);
+  const [editorTool, setEditorTool] = useState<'recortar' | 'texto' | 'subtitulos' | 'estilo' | 'audio'>('subtitulos');
   const [editEnableEmojis, setEditEnableEmojis] = useState<boolean>(true);
   const [selectedWordTarget, setSelectedWordTarget] = useState<{ lineIdx: number; wordIdx: number } | null>(null);
   const [currentPreviewTime, setCurrentPreviewTime] = useState<number>(0);
@@ -458,6 +462,10 @@ export function App() {
     setEditEnableEmojis(clip.enableEmojis !== false);
     setEditFontSize(48);
     setEditMarginV(210);
+    setEditTrimStart(0);
+    setEditTrimEnd(0);
+    setEditVolume(100);
+    setEditorTool('subtitulos');
     setCurrentPreviewTime(0);
     setIsPreviewPlaying(true);
 
@@ -506,6 +514,14 @@ export function App() {
 
   // Convert the editable lines (and per-word colors/emojis) into the
   // actual timed word payload consumed by the backend ASS subtitle renderer.
+  const seekInEditor = (seconds: number) => {
+    const player = editorVideoRef.current;
+    if (!player) return;
+    const position = Math.max(editTrimStart, Math.min(editingClip?.duration || 0, seconds));
+    player.currentTime = position;
+    setCurrentPreviewTime(position);
+  };
+
   const makeRenderWords = () => {
     return editSubtitles.flatMap((line) => {
       const textWords = line.text.trim().split(/\s+/).filter(Boolean);
@@ -513,12 +529,12 @@ export function App() {
       const step = (line.end - line.start) / textWords.length;
       return textWords.map((word, idx) => ({
         word,
-        start: Number((line.start + step * idx).toFixed(3)),
-        end: Number((line.start + step * (idx + 1)).toFixed(3)),
+        start: Number(Math.max(0, line.start + step * idx - editTrimStart).toFixed(3)),
+        end: Number(Math.min((editingClip?.duration || 0) - editTrimStart - editTrimEnd, line.start + step * (idx + 1) - editTrimStart).toFixed(3)),
         colorAss: line.wordOverrides?.[idx]?.colorAss || editColorAss,
         emoji: editEnableEmojis ? (line.wordOverrides?.[idx]?.emoji ?? line.emoji ?? '') : ''
       }));
-    });
+    }).filter((w) => w.end > w.start && w.word);
   };
 
   const handleApplyCapCutChanges = async (shouldDownloadAfter = false) => {
@@ -534,8 +550,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
         body: JSON.stringify({
           jobId: editingClip.jobId || activeProject.jobId || activeProject.id,
           clipIndex: editingClip.clipIndex || 1,
-          start: editingClip.start,
-          end: editingClip.end,
+          start: editingClip.start + editTrimStart,
+          end: editingClip.end - editTrimEnd,
           hookTitle: editingClip.hookTitle || editingClip.title,
           rawVideoUrl: editingClip.rawVideoUrl || editingClip.downloadUrl,
           subtitles: editSubtitles,
@@ -543,6 +559,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
           subtitleStyle: editStyleId,
           activeColorAss: editColorAss,
           enableEmojis: editEnableEmojis,
+          audioVolume: editVolume / 100,
           customOptions: {
             fontSize: editFontSize,
             primaryColorAss: editColorAss,
@@ -564,7 +581,14 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
         subtitleStyle: editStyleId,
         activeColorAss: editColorAss,
         enableEmojis: editEnableEmojis,
-        subtitles: editSubtitles,
+        start: editingClip.start + editTrimStart,
+        end: editingClip.end - editTrimEnd,
+        duration: editingClip.duration - editTrimStart - editTrimEnd,
+        subtitles: editSubtitles.filter((line) => line.end > editTrimStart && line.start < editingClip.duration - editTrimEnd).map((line) => ({
+          ...line,
+          start: Math.max(0, line.start - editTrimStart),
+          end: Math.min(editingClip.duration - editTrimStart - editTrimEnd, line.end - editTrimStart)
+        })),
         downloadUrl: cacheBustedUrl
       };
 
@@ -1651,6 +1675,84 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               </button>
             </div>
 
+            <div className="border-b border-white/10 bg-[#100c25] p-3 sm:p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black text-fuchsia-200">LÍNEA DE TIEMPO · EDITOR DE VIDEO</span>
+                <span className="text-xs font-mono text-slate-300">{formatMMSS(currentPreviewTime)} / {formatMMSS(editingClip.duration)}</span>
+              </div>
+              <div className="relative rounded-xl border border-white/10 overflow-hidden bg-slate-900">
+                <div className="flex h-12">
+                  {Array.from({ length: Math.max(4, Math.min(12, Math.ceil(editingClip.duration / 4))) }, (_, i, arr) => (
+                    <button type="button" key={i} onClick={() => seekInEditor(((i + 0.5) / arr.length) * editingClip.duration)}
+                      className="flex-1 min-w-0 border-r border-black/40 bg-gradient-to-b from-indigo-700/60 to-fuchsia-800/40 hover:brightness-125"
+                      aria-label={`Ir al segundo ${Math.round(((i + 0.5) / arr.length) * editingClip.duration)}`}>
+                      <Film className="w-4 h-4 mx-auto text-fuchsia-200/70" />
+                    </button>
+                  ))}
+                </div>
+                <div className="relative h-7 bg-amber-500/10">
+                  {editSubtitles.map((line, i) => (
+                    <button key={line.id} type="button" title={line.text}
+                      onClick={() => { seekInEditor(line.start); setEditorTool('subtitulos'); }}
+                      style={{ left: `${Math.max(0, line.start / Math.max(1, editingClip.duration) * 100)}%`,
+                        width: `${Math.max(1.5, (line.end - line.start) / Math.max(1, editingClip.duration) * 100)}%` }}
+                      className="absolute top-1 h-5 rounded-sm bg-amber-500/80 border border-amber-200/60 text-[8px] text-black font-bold truncate px-1">
+                      {line.text || `Texto ${i + 1}`}
+                    </button>
+                  ))}
+                </div>
+                <div className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none"
+                  style={{ left: `${Math.min(100, currentPreviewTime / Math.max(1, editingClip.duration) * 100)}%` }} />
+                <div className="absolute top-0 bottom-0 bg-black/50 pointer-events-none" style={{ left: 0, width: `${editTrimStart / Math.max(1, editingClip.duration) * 100}%` }} />
+                <div className="absolute top-0 bottom-0 bg-black/50 pointer-events-none" style={{ right: 0, width: `${editTrimEnd / Math.max(1, editingClip.duration) * 100}%` }} />
+              </div>
+              <input type="range" min={editTrimStart} max={Math.max(editTrimStart + 0.1, editingClip.duration - editTrimEnd)} step={0.1}
+                value={Math.max(editTrimStart, Math.min(currentPreviewTime, editingClip.duration - editTrimEnd))}
+                onChange={(e) => seekInEditor(Number(e.target.value))}
+                aria-label="Mover cabezal de reproducción" className="w-full accent-fuchsia-400" />
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['recortar', '✂ Recortar'],
+                  ['texto', 'T Texto'],
+                  ['subtitulos', '▤ Subtítulos'],
+                  ['estilo', '✦ Estilos'],
+                  ['audio', '♫ Audio']
+                ] as const).map(([tool, label]) => (
+                  <button key={tool} type="button" onClick={() => setEditorTool(tool)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border ${editorTool === tool ? 'bg-fuchsia-600 text-white border-fuchsia-400' : 'bg-white/5 text-slate-300 border-white/15'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {editorTool === 'recortar' && (
+                <div className="grid grid-cols-2 gap-3 text-xs rounded-xl bg-white/5 p-3">
+                  <label>Recortar inicio: {editTrimStart.toFixed(1)} s
+                    <input type="range" min={0} max={Math.max(0, editingClip.duration - editTrimEnd - 2)}
+                      step={0.1} value={editTrimStart} onChange={(e) => { setEditTrimStart(Number(e.target.value)); seekInEditor(Number(e.target.value)); }}
+                      className="block w-full accent-fuchsia-400 mt-2" />
+                  </label>
+                  <label>Recortar final: {editTrimEnd.toFixed(1)} s
+                    <input type="range" min={0} max={Math.max(0, editingClip.duration - editTrimStart - 2)}
+                      step={0.1} value={editTrimEnd} onChange={(e) => setEditTrimEnd(Number(e.target.value))}
+                      className="block w-full accent-fuchsia-400 mt-2" />
+                  </label>
+                  <span className="col-span-2 text-slate-300">Duración final: {formatMMSS(editingClip.duration - editTrimStart - editTrimEnd)}. Pulsa «Guardar y Descargar MP4» para exportar el recorte.</span>
+                </div>
+              )}
+              {editorTool === 'audio' && (
+                <label className="block text-xs rounded-xl bg-white/5 p-3">
+                  Volumen del audio original: {editVolume}%
+                  <input type="range" min={0} max={200} step={5} value={editVolume}
+                    onChange={(e) => setEditVolume(Number(e.target.value))}
+                    className="block w-full accent-cyan-400 mt-2" />
+                  <span className="block text-slate-400 mt-2">El volumen se aplicará al MP4 exportado.</span>
+                </label>
+              )}
+              {(editorTool === 'texto' || editorTool === 'subtitulos' || editorTool === 'estilo') && (
+                <p className="text-[11px] text-slate-300">Usa los controles de texto, tiempos, color y estilo de abajo. Toca un bloque amarillo para posicionarte en su subtítulo.</p>
+              )}
+            </div>
+
             <div className="flex-1 overflow-y-auto grid lg:grid-cols-12 gap-6 p-5">
               <div className="lg:col-span-4 flex flex-col items-center justify-center bg-black/60 rounded-2xl p-4 border border-white/10">
                 <div className="relative w-full max-w-[260px] aspect-[9/16] rounded-2xl overflow-hidden bg-black border-2 border-fuchsia-500/40 shadow-2xl">
@@ -1661,7 +1763,15 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                     autoPlay
                     loop
                     playsInline
-                    onTimeUpdate={(e) => setCurrentPreviewTime(e.currentTarget.currentTime)}
+                    onTimeUpdate={(e) => {
+                      const t = e.currentTarget.currentTime;
+                      if (t >= editingClip.duration - editTrimEnd && !e.currentTarget.paused) {
+                        e.currentTarget.currentTime = editTrimStart;
+                      }
+                      setCurrentPreviewTime(t);
+                    }}
+                    volume={Math.min(1, editVolume / 100)}
+                    muted={editVolume === 0}
                     className="w-full h-full object-cover"
                   />
 
