@@ -255,7 +255,7 @@ export function App() {
     const timeout = setTimeout(() => controller.abort(), 8000);
     const checkYoutubeConnection = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/connections/providers`, {
+        const response = await fetch('/api/connections/providers', {
           signal: controller.signal, cache: 'no-store'
         });
         if (!response.ok) throw new Error('Provider status unavailable');
@@ -265,7 +265,7 @@ export function App() {
           setYoutubeConnection({ ready: false, connected: false, loading: false });
           return;
         }
-        const meResponse = await fetch(`${API_BASE}/api/auth/youtube/me`, {
+        const meResponse = await fetch('/api/auth/youtube/me', {
           credentials: 'include', signal: controller.signal, cache: 'no-store'
         });
         if (!meResponse.ok) throw new Error('Session status unavailable');
@@ -290,7 +290,7 @@ export function App() {
       : youtubeConnection.loading ? 'Comprobando conexión…' : 'Conectar cuenta · Próximamente';
   const beginYoutubeConnection = () => {
     if (youtubeConnection.ready && !youtubeConnection.connected) {
-      window.location.assign(`${API_BASE}/api/auth/youtube/start`);
+      window.location.assign('/api/auth/youtube/start');
     }
   };
 
