@@ -184,6 +184,7 @@ export function App() {
   // Experimental live processing: feature flag reported by the backend.
   const [liveAutoEnabled, setLiveAutoEnabled] = useState(false);
   const [showLegacyLive, setShowLegacyLive] = useState(false);
+  const [uploadMode,setUploadMode]=useState<'professional'|'local'>('professional');
   const [livePreview,setLivePreview]=useState<null|{videoId:string;title:string;channel:string;thumbnail:string}>(null);
   const [livePreviewLoading,setLivePreviewLoading]=useState(false);
   const [livePreviewError,setLivePreviewError]=useState('');
@@ -559,14 +560,16 @@ export function App() {
       return;
     }
 
-    if (inputMode === 'upload' && selectedFile && (!/\.(mp4|mov)$/i.test(selectedFile.name) || selectedFile.size>25*1024*1024)) {
-      setErrorMsg('Selecciona un MP4 o MOV de hasta 25 MB.');return;
+    const localUpload=inputMode==='upload'&&uploadMode==='local';
+    if (inputMode === 'upload' && selectedFile && (!/\.(mp4|mov)$/i.test(selectedFile.name) || selectedFile.size>(localUpload?25:500)*1024*1024)) {
+      setErrorMsg('Selecciona un MP4 o MOV de hasta '+(localUpload?25:500)+' MB.');return;
     }
     if (inputMode === 'upload' && !selectedFile) {
       setErrorMsg('Selecciona un archivo de video MP4 o MOV desde tu dispositivo.');
       return;
     }
 
+    if(!localUpload&&!window.confirm('El generador profesional utiliza transcripción y análisis de IA que pueden generar cargos. ¿Deseas continuar?'))return;
     setIsProcessing(true);
     setProcessStep(1);
     setProcessPercent(5);
@@ -575,7 +578,6 @@ export function App() {
     const baseApi = API_BASE.replace(/\/$/, '');
 
     try {
-      const localUpload=inputMode==='upload';
       const formData = new FormData();
       if(localUpload&&selectedFile){
         formData.append('video',selectedFile,selectedFile.name);
@@ -586,7 +588,8 @@ export function App() {
         formData.append('activeColorAss',selectedActiveColorAss);
         formData.append('enableEmojis',String(enableAutoEmojis));
         formData.append('inputMode',inputMode);
-        formData.append('url',videoUrl.trim());
+        if(inputMode==='upload'&&selectedFile)formData.append('video',selectedFile,selectedFile.name);
+        else formData.append('url',videoUrl.trim());
       }
       const enqueueRes=await fetch(baseApi+(localUpload?'/api/local-highlights/upload':'/api/process'),{
         method:'POST',body:formData,...(localUpload?{headers:{'X-Jony-Authorized-Media':'yes'}}:{})
@@ -1107,8 +1110,9 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
             )}
 
             {inputMode==='link'&&liveAutoEnabled&&<button type="button" onClick={()=>setShowLegacyLive(v=>!v)} className="mb-4 text-sm font-semibold text-fuchsia-300">{showLegacyLive?'Ocultar generador convencional':'Mostrar generador convencional (puede usar IA de pago)'}</button>}
+            {inputMode==='upload'&&<div className="mb-5 space-y-2"><div className="grid sm:grid-cols-2 gap-2"><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('professional');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='professional'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Estudio profesional · CapCut</button><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('local');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='local'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Recorte local · Experimental</button></div><p className="text-xs text-slate-300">{uploadMode==='professional'?'Subtítulos dinámicos, selección por IA, cantidad y duración de clips. Puede generar cargos de API.':'Recorte por actividad sonora sin API de pago; consume recursos del servidor.'}</p></div>}
             {(inputMode!=='link'||!liveAutoEnabled||showLegacyLive)&&<>
-            {inputMode==='link'&&<>
+            {(inputMode==='link'||uploadMode==='professional')&&<>
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -1364,7 +1368,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                     <p className="text-xs text-slate-400">
                       {selectedFile
                         ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • Listo para crear carpeta de proyecto`
-                        : 'MP4 o MOV hasta 25 MB · analiza los primeros 75 segundos'}
+                        : uploadMode==='local'?'MP4 o MOV hasta 25 MB · analiza los primeros 75 segundos':'MP4 o MOV hasta 500 MB · Estudio profesional'}
                     </p>
                   </div>
                 </div>
@@ -1375,14 +1379,14 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   className="px-7 py-4 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 font-black text-sm tracking-wide shadow-xl shadow-fuchsia-600/30 flex items-center justify-center gap-2 transition cursor-pointer"
                 >
                   <Wand2 className="w-5 h-5" />
-                  <span>Generar clips automáticamente (local)</span>
+                  <span>{uploadMode==='local'?'Generar clips automáticamente (local)':'Generar Clips con Cara y Subtítulos'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             )}
 
             </>}
-            {inputMode==='upload'&&<p className="mt-3 text-xs text-slate-300">Al generar confirmas que tienes permiso para utilizar el archivo. El análisis por actividad sonora no utiliza IA de pago, pero consume recursos del servidor. Hasta 2 clips verticales, sin subtítulos ni seguimiento de personas. Los clips quedan disponibles por enlace no listado.</p>}
+            {inputMode==='upload'&&uploadMode==='local'&&<p className="mt-3 text-xs text-slate-300">Al generar confirmas que tienes permiso para utilizar el archivo. El análisis por actividad sonora no utiliza IA de pago, pero consume recursos del servidor. Hasta 2 clips verticales, sin subtítulos ni seguimiento de personas. Los clips quedan disponibles por enlace no listado.</p>}
             {errorMsg && (
               <div className="mt-4 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
