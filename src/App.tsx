@@ -176,7 +176,7 @@ const formatMMSS = (sec: number) => {
 };
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans' | 'networks'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans' | 'networks' | 'dramas'>('create');
   const [inputMode, setInputMode] = useState<'link' | 'upload'>('link');
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -220,6 +220,73 @@ export function App() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(true);
   const [isRenderingEdit, setIsRenderingEdit] = useState<boolean>(false);
   const [renderSuccessNotice, setRenderSuccessNotice] = useState<string>('');
+
+  const [dramaIdea, setDramaIdea] = useState('');
+  const [dramaGenre, setDramaGenre] = useState('drama');
+  const [dramaDuration, setDramaDuration] = useState(45);
+  const [dramaEnabled, setDramaEnabled] = useState(false);
+  const [dramaBusy, setDramaBusy] = useState(false);
+  const [dramaError, setDramaError] = useState('');
+  const [dramaResult, setDramaResult] = useState<null | {
+    title: string; hook: string; durationSeconds: number;
+    characters: { name: string; description: string }[];
+    scenes: { number: number; durationSeconds: number; visual: string; dialogue: string; camera: string }[];
+    ending: string;
+  }>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const checkDrama = async () => {
+      try {
+        const response = await fetch('/api/dramas/status', { signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) return;
+        const status = await response.json();
+        if (!controller.signal.aborted) setDramaEnabled(status.enabled === true);
+      } catch {}
+    };
+    void checkDrama();
+    return () => controller.abort();
+  }, []);
+
+  const generateDrama = async () => {
+    if (dramaBusy || !dramaEnabled || dramaIdea.trim().length < 12) return;
+    setDramaBusy(true);
+    setDramaResult(null);
+    setDramaError('');
+    try {
+      const response = await fetch('/api/dramas/generate', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea: dramaIdea.trim(), genre: dramaGenre, durationSeconds: dramaDuration })
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok || !json.drama?.scenes?.length) {
+        throw new Error(json.error || 'No se pudo generar el guion.');
+      }
+      setDramaResult(json.drama);
+    } catch (err) {
+      setDramaError(err instanceof Error ? err.message : 'No se pudo generar el guion.');
+    } finally { setDramaBusy(false); }
+  };
+
+  const downloadDramaScript = () => {
+    if (!dramaResult) return;
+    const lines = [dramaResult.title, '', 'GANCHO: ' + dramaResult.hook, '',
+      'PERSONAJES:', ...dramaResult.characters.map(c => c.name + ': ' + c.description), '',
+      ...dramaResult.scenes.flatMap(sc => [
+        'ESCENA ' + sc.number + ' (' + sc.durationSeconds + ' segundos)',
+        'Visual: ' + sc.visual, 'Cámara: ' + sc.camera, 'Diálogo: ' + sc.dialogue, ''
+      ]), 'FINAL: ' + dramaResult.ending, '', 'Formato pensado para Shorts 9:16'];
+    const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'JONY_CLIP_RD_Drama_Original.txt';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const [youtubeStatus, setYoutubeStatus] = useState<{
     loading: boolean; ready: boolean; connected: boolean; channel?: string;
@@ -775,6 +842,11 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
             </button>
 
             <button
+              onClick={() => setActiveTab('dramas')}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition ${activeTab === 'dramas' ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}>
+              <Film className="w-4 h-4" /> Dramas IA
+            </button>
+            <button
               onClick={() => setActiveTab('networks')}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition ${activeTab === 'networks' ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
             >
@@ -835,6 +907,10 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
           className={`px-3 py-1.5 rounded-lg font-semibold ${activeTab === 'folders' ? 'bg-fuchsia-600' : 'text-slate-400'}`}
         >
           Carpetas ({projects.length})
+        </button>
+        <button onClick={() => setActiveTab('dramas')}
+          className={`px-3 py-1.5 rounded-lg font-semibold ${activeTab === 'dramas' ? 'bg-fuchsia-600' : 'text-slate-400'}`}>
+          Dramas IA
         </button>
         <button onClick={() => setActiveTab('networks')}
           className={`px-3 py-1.5 rounded-lg font-semibold ${activeTab === 'networks' ? 'bg-fuchsia-600' : 'text-slate-400'}`}>
@@ -1446,6 +1522,73 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </div>
               ))}
             </div>
+          )}
+        </main>
+      )}
+
+      {activeTab === 'dramas' && (
+        <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+          <div className="rounded-3xl bg-gradient-to-br from-fuchsia-900/40 to-indigo-900/30 border border-fuchsia-400/20 p-6">
+            <p className="text-xs font-black text-fuchsia-300 uppercase tracking-widest">JONY CLIP RD Studio</p>
+            <h1 className="text-3xl font-black mt-2">Creador de dramas con IA</h1>
+            <p className="text-sm text-slate-300 mt-2">Escribe una idea y crea una historia original con personajes, diálogos y escenas verticales para Shorts.</p>
+            <p className="text-xs text-amber-200 mt-3">Primera etapa: genera el guion y el plan de escenas. Todavía no produce imágenes, voces ni un video MP4 automáticamente.</p>
+          </div>
+          <section className="rounded-3xl border border-white/10 bg-[#140d2b] p-5 md:p-7 space-y-4">
+            <label className="block text-sm font-bold">¿De qué tratará tu drama?
+              <textarea rows={4} maxLength={600} value={dramaIdea} onChange={e=>setDramaIdea(e.target.value)}
+                placeholder="Ej.: Una joven vuelve a su pueblo después de 10 años y descubre una carta que cambia su vida…"
+                className="block mt-2 w-full rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-sm font-normal"/>
+            </label>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <label className="block text-sm font-bold">Género
+                <select value={dramaGenre} onChange={e=>setDramaGenre(e.target.value)}
+                  className="block mt-2 w-full rounded-xl border border-white/20 bg-[#211638] px-3 py-3">
+                  <option value="drama">Drama</option><option value="misterio">Misterio</option>
+                  <option value="romance">Romance</option><option value="suspenso">Suspenso</option>
+                  <option value="fantasia">Fantasía</option><option value="superacion">Superación</option>
+                </select>
+              </label>
+              <label className="block text-sm font-bold">Duración aproximada
+                <select value={dramaDuration} onChange={e=>setDramaDuration(Number(e.target.value))}
+                  className="block mt-2 w-full rounded-xl border border-white/20 bg-[#211638] px-3 py-3">
+                  <option value={30}>30 segundos</option><option value={45}>45 segundos</option>
+                  <option value={60}>60 segundos</option>
+                </select>
+              </label>
+            </div>
+            <button type="button" onClick={generateDrama}
+              disabled={!dramaEnabled || dramaBusy || dramaIdea.trim().length < 12}
+              className="w-full rounded-xl bg-gradient-to-r from-fuchsia-600 to-indigo-600 px-5 py-3.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+              {dramaBusy ? 'Creando historia…' : dramaEnabled ? 'Generar drama original con IA' : 'Generador de dramas · Próximamente'}
+            </button>
+            {!dramaEnabled && <p className="text-xs text-amber-200">La función está en preparación. Tu editor de clips sigue disponible mientras tanto.</p>}
+            {dramaError && <p role="alert" className="text-rose-300 text-sm">{dramaError}</p>}
+          </section>
+          {dramaResult && (
+            <section className="rounded-3xl border border-fuchsia-500/30 bg-[#140d2b] p-5 md:p-7 space-y-5">
+              <div className="flex flex-wrap gap-3 justify-between items-start">
+                <div><p className="text-xs text-fuchsia-300">GUION ORIGINAL · 9:16</p>
+                  <h2 className="text-2xl font-black mt-1">{dramaResult.title}</h2>
+                </div>
+                <button type="button" onClick={downloadDramaScript}
+                  className="rounded-xl bg-fuchsia-600 px-4 py-2 text-sm font-bold">Descargar guion TXT</button>
+              </div>
+              <p className="text-sm"><strong>Gancho:</strong> {dramaResult.hook}</p>
+              <div><h3 className="font-bold mb-2">Personajes</h3>
+                {dramaResult.characters.map((c,i)=><p key={i} className="text-sm text-slate-300">{c.name}: {c.description}</p>)}
+              </div>
+              <div className="space-y-3">{dramaResult.scenes.map(sc=>(
+                <div key={sc.number} className="rounded-2xl bg-black/30 border border-white/10 p-4">
+                  <h3 className="font-bold text-fuchsia-200">Escena {sc.number} · {sc.durationSeconds} s</h3>
+                  <p className="text-sm mt-2"><strong>Visual:</strong> {sc.visual}</p>
+                  <p className="text-sm mt-1"><strong>Cámara:</strong> {sc.camera}</p>
+                  <p className="text-sm mt-1"><strong>Diálogo:</strong> {sc.dialogue}</p>
+                </div>
+              ))}</div>
+              <p className="text-sm font-bold">Final: {dramaResult.ending}</p>
+              <p className="text-xs text-amber-200">Este resultado es un guion, no un MP4. Las escenas deberán producirse con contenido propio o autorizado antes de publicarse.</p>
+            </section>
           )}
         </main>
       )}
