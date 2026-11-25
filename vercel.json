@@ -11,6 +11,10 @@
     {
       "source": "/api/dramas/:path*",
       "destination": "https://jonycliprd-backend-production.up.railway.app/api/dramas/:path*"
+    },
+    {
+      "source": "/api/live-auto/:path*",
+      "destination": "https://jonycliprd-backend-production.up.railway.app/api/live-auto/:path*"
     }
   ]
 }
