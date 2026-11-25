@@ -225,6 +225,43 @@ export function App() {
     loading: boolean; ready: boolean; connected: boolean; channel?: string;
   }>({ loading: true, ready: false, connected: false });
   const [youtubeError, setYoutubeError] = useState('');
+  const [youtubePrivateUploadEnabled, setYoutubePrivateUploadEnabled] = useState(false);
+  const [youtubeUploadTitle, setYoutubeUploadTitle] = useState('');
+  const [youtubeUploadDescription, setYoutubeUploadDescription] = useState('');
+  const [youtubeUploadMadeForKids, setYoutubeUploadMadeForKids] = useState<'yes' | 'no' | ''>('');
+  const [youtubeUploadFile, setYoutubeUploadFile] = useState<File | null>(null);
+  const [youtubeUploadBusy, setYoutubeUploadBusy] = useState(false);
+  const [youtubeUploadResult, setYoutubeUploadResult] = useState<{title:string;url:string}|null>(null);
+  const [youtubeUploadError, setYoutubeUploadError] = useState('');
+  const uploadPrivateYouTube = async () => {
+    if (!youtubeUploadFile || !youtubeUploadTitle.trim() || youtubeUploadMadeForKids === '' ||
+        !youtubeStatus.connected || !youtubePrivateUploadEnabled || youtubeUploadBusy) return;
+    if (!window.confirm('¿Enviar este MP4 a YouTube como video PRIVADO? Solo tú podrás verlo hasta que cambies su visibilidad en YouTube Studio.')) return;
+    setYoutubeUploadBusy(true);
+    setYoutubeUploadError('');
+    setYoutubeUploadResult(null);
+    try {
+      const data = new FormData();
+      data.append('video', youtubeUploadFile);
+      data.append('title', youtubeUploadTitle.trim());
+      data.append('description', youtubeUploadDescription.trim());
+      data.append('madeForKids', youtubeUploadMadeForKids === 'yes' ? 'true' : 'false');
+      data.append('confirmUpload', 'yes');
+      const response = await fetch('/api/auth/youtube/upload-private', {
+        method: 'POST', credentials: 'include', body: data
+      });
+      const json = await response.json();
+      if (!response.ok || json?.ok !== true || json?.video?.privacyStatus !== 'private') {
+        throw new Error(typeof json?.error === 'string' ? json.error : 'YouTube no confirmó la subida privada.');
+      }
+      setYoutubeUploadResult({title: json.video.title, url: json.video.url});
+    } catch (err) {
+      setYoutubeUploadError(err instanceof Error ? err.message : 'No se pudo verificar la subida.');
+    } finally {
+      setYoutubeUploadBusy(false);
+    }
+  };
+
   const [disconnectBusy, setDisconnectBusy] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -234,6 +271,7 @@ export function App() {
         const response = await fetch('/api/connections/providers', { cache: 'no-store', signal: controller.signal });
         if (!response.ok) throw new Error('Provider unavailable');
         const providers = await response.json();
+        setYoutubePrivateUploadEnabled(providers?.providers?.youtube?.privateUploadEnabled === true);
         if (providers?.providers?.youtube?.connectEnabled !== true) {
           setYoutubeStatus({ loading: false, ready: false, connected: false });
           return;
@@ -1436,6 +1474,44 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 className="rounded-xl bg-fuchsia-600 px-4 py-3 font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
                 {youtubeStatus.ready ? 'Conectar con Google' : 'Conectar cuenta · Próximamente'}
               </button>
+            )}
+            {youtubeStatus.connected && youtubePrivateUploadEnabled && (
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4">
+                <h3 className="font-bold">Subir Short privado de prueba</h3>
+                <p className="text-xs text-amber-200">La subida será privada. YouTube determina si el video cumple el formato Shorts.</p>
+                <label className="block text-sm">Archivo MP4 (máximo 40 MB)
+                  <input type="file" accept="video/mp4,.mp4"
+                    onChange={(e) => setYoutubeUploadFile(e.target.files?.[0] || null)}
+                    className="block mt-1 w-full text-sm" />
+                </label>
+                <label className="block text-sm">Título
+                  <input value={youtubeUploadTitle} onChange={(e) => setYoutubeUploadTitle(e.target.value)}
+                    maxLength={100} placeholder="Título del Short"
+                    className="block mt-1 w-full rounded-lg border border-white/20 bg-black/40 p-2" />
+                </label>
+                <label className="block text-sm">Descripción
+                  <textarea value={youtubeUploadDescription} onChange={(e) => setYoutubeUploadDescription(e.target.value)}
+                    maxLength={5000} placeholder="Descripción opcional"
+                    className="block mt-1 w-full rounded-lg border border-white/20 bg-black/40 p-2" rows={3} />
+                </label>
+                <label className="block text-sm">¿Está dirigido a niños?
+                  <select value={youtubeUploadMadeForKids}
+                    onChange={(e) => setYoutubeUploadMadeForKids(e.target.value as 'yes' | 'no' | '')}
+                    className="block mt-1 w-full rounded-lg border border-white/20 bg-[#140d2b] p-2">
+                    <option value="">Selecciona una opción</option>
+                    <option value="yes">Sí</option><option value="no">No</option>
+                  </select>
+                </label>
+                <button type="button" onClick={uploadPrivateYouTube}
+                  disabled={youtubeUploadBusy || !youtubeUploadFile || youtubeUploadFile.size > 40*1024*1024 || !youtubeUploadTitle.trim() || !youtubeUploadMadeForKids}
+                  className="rounded-xl bg-fuchsia-600 px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
+                  {youtubeUploadBusy ? 'Subiendo…' : 'Confirmar subida PRIVADA a YouTube'}
+                </button>
+                {youtubeUploadError && <p role="alert" className="text-sm text-rose-300">{youtubeUploadError}</p>}
+                {youtubeUploadResult && <p role="status" className="text-sm text-emerald-300">
+                  YouTube confirmó el video privado: <a href={youtubeUploadResult.url} target="_blank" rel="noopener noreferrer" className="underline">{youtubeUploadResult.title}</a>
+                </p>}
+              </div>
             )}
             <p className="text-xs text-amber-200">Nunca escribas tu contraseña de Google dentro de JONY CLIP RD. Los permisos se autorizan únicamente en Google.</p>
           </section>
