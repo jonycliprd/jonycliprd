@@ -190,21 +190,26 @@ export function App() {
   const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
   const [liveSession, setLiveSession] = useState<null | {
     status: string; analyzedWindows: number; currentWindow?: number;
-    pendingJobs: number; maxMinutes: number; errors?: string[];
+    pendingJobs: number; maxMinutes: number; errors?: string[]; failedJobs?: number;
     clips: {id:string;title:string;startSeconds:number;score:number;videoUrl:string}[];
   }>(null);
+  const liveFinished = !!liveSession && ['stopped','error','capture_finished'].includes(liveSession.status) && (liveSession.pendingJobs||0)===0;
+  const [liveDetectionMode, setLiveDetectionMode] = useState<string>('');
   useEffect(() => {
     const controller = new AbortController();
     void fetch('/api/live-auto/capabilities',{cache:'no-store',signal:controller.signal})
       .then(r=>r.ok?r.json():null)
-      .then(data=>{if(!controller.signal.aborted)setLiveAutoEnabled(data?.enabled===true);})
+      .then(data=>{if(!controller.signal.aborted){setLiveAutoEnabled(data?.enabled===true);setLiveDetectionMode(data?.detectionMode||'');}})
       .catch(()=>{});
     return ()=>controller.abort();
   },[]);
   useEffect(()=>{
-    if(!liveSessionId)return;
+    if(!liveSessionId||liveFinished)return;
     let cancelled=false;
+    let updating=false;
     const update=async()=>{
+      if(updating)return;
+      updating=true;
       try{
         const response=await fetch('/api/live-auto/session/'+liveSessionId,
           {cache:'no-store',credentials:'include'});
@@ -212,13 +217,15 @@ export function App() {
         if(!cancelled){
           if(!response.ok)throw new Error(data.error||'No se pudo consultar el directo.');
           setLiveSession(data.session);
+          setLiveError('');
         }
       }catch(err){if(!cancelled)setLiveError(err instanceof Error?err.message:'Error consultando el directo.');}
+      finally{updating=false;}
     };
     void update();
     const interval=window.setInterval(()=>void update(),7000);
     return ()=>{cancelled=true;window.clearInterval(interval);};
-  },[liveSessionId]);
+  },[liveSessionId,liveFinished]);
   const startLiveAuto=async()=>{
     if(liveBusy||!liveRightsConfirmed||!liveUsageConfirmed||!videoUrl.trim())return;
     setLiveBusy(true);setLiveError('');
@@ -1028,9 +1035,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   Modo directo automático · EXPERIMENTAL
                 </div>
                 <p className="text-xs text-slate-300">
-                  Detecta automáticamente los mejores momentos en ventanas de 75 segundos y prepara
-                  clips para revisar mientras continúa el directo. Límite de 10 minutos por prueba.
-                  La captura de YouTube puede fallar; no incluye todavía seguimiento visual de personas.
+                  {liveDetectionMode==='audio_activity'?'Detecta cambios fuertes de audio y prepara clips verticales sin subtítulos ni puntuación viral.':'Analiza momentos destacados y prepara clips para revisar mientras continúa el directo.'}
+                  {' '}Límite de 10 minutos por prueba. La captura de YouTube puede fallar; no incluye todavía seguimiento visual de personas.
                 </p>
                 {!liveSessionId && (
                   <>
@@ -1042,8 +1048,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                     <label className="flex items-start gap-2 text-xs text-slate-200">
                       <input type="checkbox" checked={liveUsageConfirmed}
                         onChange={e=>setLiveUsageConfirmed(e.target.checked)} />
-                      Entiendo que cada fragmento utiliza servidor y servicios de transcripción e IA,
-                      que pueden generar cargos.
+                      Entiendo que el procesamiento consume recursos del servidor y puede generar cargos.
+                      {liveDetectionMode!=='audio_activity'&&' También puede utilizar servicios de transcripción e IA.'}
                     </label>
                     <button type="button" onClick={startLiveAuto}
                       disabled={!videoUrl.trim()||!liveRightsConfirmed||!liveUsageConfirmed||liveBusy}
@@ -1065,12 +1071,14 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                         disabled:opacity-50 font-bold text-sm">
                       Detener captura
                     </button>
+                    {liveFinished && <button type="button" onClick={()=>{setLiveSessionId(null);setLiveSession(null);setLiveError('');setLiveRightsConfirmed(false);setLiveUsageConfirmed(false);}} className="px-4 py-2 rounded-lg bg-white/10 font-bold text-sm">Iniciar otro directo</button>}
+                    {!!liveSession?.failedJobs && <p role="alert" className="text-xs text-red-300">{liveSession.failedJobs} fragmentos no se pudieron procesar.</p>}
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {(liveSession?.clips||[]).map(clip=>(
                         <article key={clip.id} className="p-3 rounded-xl bg-black/40 border border-white/10">
                           <div className="text-sm font-bold mb-1">{clip.title}</div>
                           <p className="text-xs text-slate-300 mb-2">
-                            Minuto {(clip.startSeconds/60).toFixed(1)} · Puntuación IA {clip.score}
+                            Tiempo relativo {(clip.startSeconds/60).toFixed(1)} min · {liveDetectionMode==='audio_activity'?'Actividad sonora':`Puntuación IA ${clip.score}`}
                           </p>
                           <video controls preload="none" src={clip.videoUrl}
                             className="rounded-lg w-full max-h-72" />
@@ -1082,7 +1090,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       ))}
                     </div>
                     {(liveSession?.clips||[]).length===0 && (
-                      <p className="text-xs text-slate-400">Los clips destacados aparecerán aquí al procesarse.</p>
+                      <p className="text-xs text-slate-400">{liveFinished?'La sesión terminó sin clips disponibles.':'Los clips destacados aparecerán aquí al procesarse.'}</p>
                     )}
                     {(liveSession?.errors||[]).map((error,index)=>(
                       <p key={index} className="text-xs text-red-300">{error}</p>
