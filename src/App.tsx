@@ -47,9 +47,10 @@ interface SubtitleLine {
   wordOverrides?: Record<number, WordOverride>;
 }
 
-type ProfessionalLayout = 'fill'|'blur'|'split'|'auto';
+type ProfessionalLayout = 'face'|'fill'|'blur'|'split'|'auto';
 interface ClipItem {
   layoutMode?: ProfessionalLayout;
+  faceTracked?: boolean;
   id: string | number;
   jobId?: string;
   clipIndex?: number;
@@ -278,7 +279,7 @@ export function App() {
     finally{setLiveBusy(false);}
   };
 
-  const [linkLayout,setLinkLayout]=useState<ProfessionalLayout>('fill');
+  const [linkLayout,setLinkLayout]=useState<ProfessionalLayout>('face');
   const [uploadLayout,setUploadLayout]=useState<ProfessionalLayout>('auto');
   const professionalLayout=inputMode==='link'?linkLayout:uploadLayout;
   const [clipDuration, setClipDuration] = useState<number>(30);
@@ -622,7 +623,8 @@ export function App() {
         start: Number(c.start) || 0,
         end: Number(c.end) || clipDuration,
         duration: Number(c.duration) || clipDuration,
-        layoutMode: ['fill','blur','split','auto'].includes(c.layoutMode)?c.layoutMode:undefined,
+        layoutMode: ['face','fill','blur','split','auto'].includes(c.layoutMode)?c.layoutMode:undefined,
+        faceTracked: typeof c.faceTracked==='boolean'?c.faceTracked:undefined,
         subtitleStyle: c.subtitleStyle || selectedPreset,
         activeColorAss: c.activeColorAss || selectedActiveColorAss,
         enableEmojis: typeof c.enableEmojis === 'boolean' ? c.enableEmojis : enableAutoEmojis,
@@ -778,6 +780,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
 
       const updatedClip: ClipItem = {
         ...editingClip,
+        faceTracked: typeof data.faceTracked==='boolean'?data.faceTracked:editingClip.faceTracked,
         subtitleStyle: editStyleId,
         activeColorAss: editColorAss,
         enableEmojis: editEnableEmojis,
@@ -1113,7 +1116,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   {!(liveSession?.clips||[]).length&&<p className="text-xs text-[#514a5c]">{liveFinished?'La sesión terminó sin clips disponibles.':'Los clips reales aparecerán aquí al procesarse.'}</p>}
                 </div>
                 {(liveSession?.errors||[]).map((error,index)=><p key={index} className="text-xs text-red-700">{error}</p>)}
-                <p className="text-xs text-[#514a5c]">Experimental · máximo 10 minutos por prueba. Detección por actividad sonora, sin subtítulos ni seguimiento visual de personas. El estado en vivo del enlace no se verifica en la vista previa.</p>
+                <p className="text-xs text-[#514a5c]">Experimental · máximo 10 minutos por prueba. Detección por actividad sonora, sin subtítulos. Encuadre facial experimental cuando está disponible; si no encuentra un rostro, usa el centro. El estado en vivo del enlace no se verifica en la vista previa.</p>
               </section>
             )}
 
@@ -1123,9 +1126,9 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
             <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-6 space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-purple-200">Encuadre vertical 9:16 · 1080 × 1920</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {([{id:'fill',label:'Pantalla completa'},{id:'blur',label:'Fondo desenfocado'},{id:'split',label:'Pantalla dividida'},{id:'auto',label:'Automático original'}] as {id:ProfessionalLayout;label:string}[]).map(mode=><button key={mode.id} type="button" aria-pressed={professionalLayout===mode.id} disabled={isProcessing} onClick={()=>inputMode==='link'?setLinkLayout(mode.id):setUploadLayout(mode.id)} className={'rounded-xl p-3 text-xs font-bold border '+(professionalLayout===mode.id?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/10 text-purple-200')}>{mode.label}</button>)}
+                {([{id:'face',label:'Seguimiento facial'},{id:'fill',label:'Pantalla completa'},{id:'blur',label:'Fondo desenfocado'},{id:'split',label:'Pantalla dividida'},{id:'auto',label:'Automático original'}] as {id:ProfessionalLayout;label:string}[]).map(mode=><button key={mode.id} type="button" aria-pressed={professionalLayout===mode.id} disabled={isProcessing} onClick={()=>inputMode==='link'?setLinkLayout(mode.id):setUploadLayout(mode.id)} className={'rounded-xl p-3 text-xs font-bold border '+(professionalLayout===mode.id?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/10 text-purple-200')}>{mode.label}</button>)}
               </div>
-              <p className="text-xs text-slate-400">Pantalla completa recorta los laterales de un video horizontal sin deformarlo. Todavía no incluye seguimiento de personas.</p>
+              <p className="text-xs text-slate-400">Seguimiento facial: busca un rostro destacado y mueve el recorte vertical sin deformar la imagen. Si no detecta un rostro, usa el centro. No identifica con certeza quién habla. Pantalla completa conserva el recorte centrado original.</p>
             </div>
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
