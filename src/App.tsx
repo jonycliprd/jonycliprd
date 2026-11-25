@@ -183,7 +183,6 @@ export function App() {
 
   // Experimental live processing: feature flag reported by the backend.
   const [liveAutoEnabled, setLiveAutoEnabled] = useState(false);
-  const [showLegacyLive, setShowLegacyLive] = useState(false);
   const [uploadMode,setUploadMode]=useState<'professional'|'local'>('professional');
   const [livePreview,setLivePreview]=useState<null|{videoId:string;title:string;channel:string;thumbnail:string}>(null);
   const [livePreviewLoading,setLivePreviewLoading]=useState(false);
@@ -1109,9 +1108,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               </section>
             )}
 
-            {inputMode==='link'&&liveAutoEnabled&&<button type="button" onClick={()=>setShowLegacyLive(v=>!v)} className="mb-4 text-sm font-semibold text-fuchsia-300">{showLegacyLive?'Ocultar generador convencional':'Mostrar generador convencional (puede usar IA de pago)'}</button>}
+            {inputMode==='link'&&<div className="mb-5 mt-6 space-y-1 border-t border-white/10 pt-5"><h2 className="text-lg font-black text-white flex items-center gap-2"><Clapperboard className="w-5 h-5 text-fuchsia-400"/> Estudio profesional · CapCut</h2><p className="text-xs text-slate-300">Generador original: cantidad, duración, colores, emojis y subtítulos dinámicos. Independiente del directo automático; puede utilizar IA de pago.</p></div>}
             {inputMode==='upload'&&<div className="mb-5 space-y-2"><div className="grid sm:grid-cols-2 gap-2"><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('professional');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='professional'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Estudio profesional · CapCut</button><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('local');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='local'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Recorte local · Experimental</button></div><p className="text-xs text-slate-300">{uploadMode==='professional'?'Subtítulos dinámicos, selección por IA, cantidad y duración de clips. Puede generar cargos de API.':'Recorte por actividad sonora sin API de pago; consume recursos del servidor.'}</p></div>}
-            {(inputMode!=='link'||!liveAutoEnabled||showLegacyLive)&&<>
             {(inputMode==='link'||uploadMode==='professional')&&<>
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
@@ -1385,7 +1383,6 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               </div>
             )}
 
-            </>}
             {inputMode==='upload'&&uploadMode==='local'&&<p className="mt-3 text-xs text-slate-300">Al generar confirmas que tienes permiso para utilizar el archivo. El análisis por actividad sonora no utiliza IA de pago, pero consume recursos del servidor. Hasta 2 clips verticales, sin subtítulos ni seguimiento de personas. Los clips quedan disponibles por enlace no listado.</p>}
             {errorMsg && (
               <div className="mt-4 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5">
