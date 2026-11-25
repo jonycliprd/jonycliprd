@@ -246,6 +246,76 @@ export function App() {
 
   const [downloadHelpUrl, setDownloadHelpUrl] = useState<string | null>(null);
   const [showSocialConnections, setShowSocialConnections] = useState(false);
+  // The server, not this browser, decides whether Google OAuth is ready.
+  const [youtubeConnection, setYoutubeConnection] = useState<{
+    ready: boolean; connected: boolean; loading: boolean; email?: string; channelTitle?: string;
+  }>({ ready: false, connected: false, loading: true });
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const checkYoutubeConnection = async () => {
+      try {
+        const response = await fetch('/api/connections/providers', {
+          signal: controller.signal, cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('Provider status unavailable');
+        const providers = await response.json();
+        const ready = providers?.providers?.youtube?.connectEnabled === true;
+        if (!ready) {
+          setYoutubeConnection({ ready: false, connected: false, loading: false });
+          return;
+        }
+        const meResponse = await fetch('/api/auth/youtube/me', {
+          credentials: 'include', signal: controller.signal, cache: 'no-store'
+        });
+        if (!meResponse.ok) throw new Error('Session status unavailable');
+        const me = await meResponse.json();
+        setYoutubeConnection({
+          ready: true, connected: me.connected === true, loading: false,
+          email: typeof me.user?.email === 'string' ? me.user.email : undefined,
+          channelTitle: typeof me.user?.channel?.title === 'string' ? me.user.channel.title : undefined
+        });
+      } catch {
+        // Fail closed on network errors and timeouts; only ignore unmount cleanup.
+        setYoutubeConnection({ ready: false, connected: false, loading: false });
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+    void checkYoutubeConnection();
+    return () => { clearTimeout(timeout); controller.abort(); };
+  }, []);
+  const youtubeConnectionLabel = youtubeConnection.connected
+    ? 'YouTube conectado' : youtubeConnection.ready ? 'Conectar con Google'
+      : youtubeConnection.loading ? 'Comprobando conexión…' : 'Conectar cuenta · Próximamente';
+  const beginYoutubeConnection = () => {
+    if (youtubeConnection.ready && !youtubeConnection.connected) {
+      window.location.assign('/api/auth/youtube/start');
+    }
+  };
+  const [youtubeDisconnectBusy, setYoutubeDisconnectBusy] = useState(false);
+  const [youtubeDisconnectError, setYoutubeDisconnectError] = useState('');
+  const disconnectYoutube = async () => {
+    if (!youtubeConnection.ready || !youtubeConnection.connected || youtubeDisconnectBusy) return;
+    if (!window.confirm('¿Desconectar tu canal de YouTube? Tendrás que autorizarlo de nuevo para volver a conectarlo.')) return;
+    setYoutubeDisconnectError('');
+    setYoutubeDisconnectBusy(true);
+    try {
+      const response = await fetch('/api/auth/youtube/disconnect', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      if (!response.ok) throw new Error('No se pudo desconectar el canal. Inténtalo nuevamente.');
+      const status = await response.json();
+      if (status.ok !== true || status.connected !== false) throw new Error('No se confirmó la desconexión.');
+      setYoutubeConnection({ ready: true, connected: false, loading: false });
+    } catch (err) {
+      setYoutubeDisconnectError(err instanceof Error ? err.message : 'Error desconectando YouTube.');
+    } finally {
+      setYoutubeDisconnectBusy(false);
+    }
+  };
+
   const [clipFeedback, setClipFeedback] = useState<Record<string, 'like' | 'dislike'>>(() => {
     try { return JSON.parse(localStorage.getItem('jonycliprd_clip_feedback_v1') || '{}'); } catch { return {}; }
   });
@@ -783,7 +853,8 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       <Icon className={`w-6 h-6 shrink-0 ${network.color}`} />
                       <div className="min-w-0">
                         <p className="text-sm font-bold">{network.name}</p>
-                        <p className="text-[11px] text-amber-200">Sin vincular · OAuth pendiente</p>
+                        <p className="text-[11px] text-amber-200">{network.id === 'youtube' && youtubeConnection.connected
+                          ? `${youtubeConnection.channelTitle || 'Canal de YouTube'} · Publicación pendiente` : 'Sin vincular · OAuth pendiente'}</p>
                       </div>
                     </div>
                     <a href={network.site} target="_blank" rel="noopener noreferrer"
@@ -1667,20 +1738,36 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       <div className="p-3 rounded-xl bg-white/5 border border-white/10"><Icon className={`h-6 w-6 ${network.color}`} /></div>
                       <div>
                         <h2 className="font-extrabold text-white">{network.name}</h2>
-                        <p className="text-xs text-slate-400">{network.format} · Sin vincular</p>
+                        <p className="text-xs text-slate-400">{network.format} · {network.id === 'youtube' && youtubeConnection.connected ? 'Google autorizado' : 'Sin vincular'}</p>
                       </div>
                     </div>
-                    <p className="text-xs text-amber-200">Pendiente de OAuth y autorización de la plataforma.</p>
+                    <p className="text-xs text-amber-200">{network.id === 'youtube' && youtubeConnection.connected
+                      ? `Canal: ${youtubeConnection.channelTitle || 'YouTube'}. Publicar Shorts todavía no está disponible.`
+                      : network.id === 'youtube' && youtubeConnection.ready
+                        ? 'La autorización de Google está disponible; revisa los permisos antes de continuar.'
+                        : 'Pendiente de OAuth y autorización de la plataforma.'}</p>
                     <div className="flex gap-2 mt-auto">
-                      <button type="button" disabled title="Conexión segura pendiente de configurar"
-                        className="flex-1 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2.5 text-xs font-bold text-fuchsia-200 opacity-60 cursor-not-allowed">
-                        Conectar cuenta · Próximamente
+                      <button type="button"
+                        disabled={network.id !== 'youtube' || !youtubeConnection.ready || youtubeConnection.connected}
+                        onClick={network.id === 'youtube' ? beginYoutubeConnection : undefined}
+                        title={network.id === 'youtube' ? 'Autorización oficial de Google cuando esté habilitada' : 'Conexión segura pendiente de configurar'}
+                        className={`flex-1 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2.5 text-xs font-bold text-fuchsia-200 ${network.id !== 'youtube' || !youtubeConnection.ready || youtubeConnection.connected ? 'opacity-60 cursor-not-allowed' : 'hover:bg-fuchsia-500/20'}`}>
+                        {network.id === 'youtube' ? youtubeConnectionLabel : 'Conectar cuenta · Próximamente'}
                       </button>
+                      {network.id === 'youtube' && youtubeConnection.connected && (
+                        <button type="button" onClick={disconnectYoutube} disabled={youtubeDisconnectBusy}
+                          className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-xs font-bold text-rose-200 disabled:opacity-50">
+                          {youtubeDisconnectBusy ? 'Desconectando…' : 'Desconectar'}
+                        </button>
+                      )}
                       <a href={network.site} target="_blank" rel="noopener noreferrer"
                         className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-bold text-slate-200">
                         Abrir <ExternalLink className="inline h-3.5 w-3.5" />
                       </a>
                     </div>
+                    {network.id === 'youtube' && youtubeDisconnectError && (
+                      <p role="alert" className="text-xs text-rose-300">{youtubeDisconnectError}</p>
+                    )}
                   </div>
                 );
               })}
