@@ -559,6 +559,9 @@ export function App() {
       return;
     }
 
+    if (inputMode === 'upload' && selectedFile && (!/\.(mp4|mov)$/i.test(selectedFile.name) || selectedFile.size>25*1024*1024)) {
+      setErrorMsg('Selecciona un MP4 o MOV de hasta 25 MB.');return;
+    }
     if (inputMode === 'upload' && !selectedFile) {
       setErrorMsg('Selecciona un archivo de video MP4 o MOV desde tu dispositivo.');
       return;
@@ -572,23 +575,21 @@ export function App() {
     const baseApi = API_BASE.replace(/\/$/, '');
 
     try {
+      const localUpload=inputMode==='upload';
       const formData = new FormData();
-      formData.append('clipDuration', String(clipDuration));
-      formData.append('clipCount', String(clipCount));
-      formData.append('subtitleStyle', selectedPreset);
-      formData.append('activeColorAss', selectedActiveColorAss);
-      formData.append('enableEmojis', String(enableAutoEmojis));
-      formData.append('inputMode', inputMode);
-
-      if (inputMode === 'upload' && selectedFile) {
-        formData.append('video', selectedFile, selectedFile.name);
-      } else {
-        formData.append('url', videoUrl.trim());
+      if(localUpload&&selectedFile){
+        formData.append('video',selectedFile,selectedFile.name);
+      }else{
+        formData.append('clipDuration',String(clipDuration));
+        formData.append('clipCount',String(clipCount));
+        formData.append('subtitleStyle',selectedPreset);
+        formData.append('activeColorAss',selectedActiveColorAss);
+        formData.append('enableEmojis',String(enableAutoEmojis));
+        formData.append('inputMode',inputMode);
+        formData.append('url',videoUrl.trim());
       }
-
-      const enqueueRes = await fetch(`${baseApi}/api/process`, {
-        method: 'POST',
-        body: formData
+      const enqueueRes=await fetch(baseApi+(localUpload?'/api/local-highlights/upload':'/api/process'),{
+        method:'POST',body:formData,...(localUpload?{headers:{'X-Jony-Authorized-Media':'yes'}}:{})
       });
 
       const enqueueData = await enqueueRes.json();
@@ -601,13 +602,14 @@ export function App() {
         ? await pollJobUntilDone(baseApi, resolvedJobId)
         : enqueueData;
 
+      if(localUpload&&!(data.clips||[]).length){setErrorMsg('El análisis no encontró cambios fuertes de audio en los primeros 75 segundos. No se crearon clips.');return;}
       const normalizedClips: ClipItem[] = (data.clips || []).map((c: any, idx: number) => ({
         id: c.id || `${Date.now()}_${idx + 1}`,
         jobId: c.jobId || resolvedJobId || data.project?.id || '',
         clipIndex: typeof c.clipIndex === 'number' ? c.clipIndex : idx + 1,
-        title: c.title || `Clip Viral #${idx + 1}`,
+        title: c.title || (localUpload?`Actividad sonora #${idx+1}`:`Clip Viral #${idx + 1}`),
         hookTitle: c.hookTitle || '',
-        score: Number(c.score) || Math.max(85, 99 - idx),
+        score: localUpload?0:(Number(c.score) || Math.max(85, 99 - idx)),
         start: Number(c.start) || 0,
         end: Number(c.end) || clipDuration,
         duration: Number(c.duration) || clipDuration,
@@ -1106,6 +1108,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
 
             {inputMode==='link'&&liveAutoEnabled&&<button type="button" onClick={()=>setShowLegacyLive(v=>!v)} className="mb-4 text-sm font-semibold text-fuchsia-300">{showLegacyLive?'Ocultar generador convencional':'Mostrar generador convencional (puede usar IA de pago)'}</button>}
             {(inputMode!=='link'||!liveAutoEnabled||showLegacyLive)&&<>
+            {inputMode==='link'&&<>
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -1306,6 +1309,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               </div>
             </div>
 
+            </>}
             {inputMode === 'link' ? (
               <div className="bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
                 <div className="flex-1 space-y-2">
@@ -1341,7 +1345,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="video/mp4,video/quicktime,video/x-matroska,video/*"
+                  accept="video/mp4,video/quicktime,.mp4,.mov"
                   onChange={handleFileChange}
                   className="hidden"
                 />
@@ -1360,7 +1364,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                     <p className="text-xs text-slate-400">
                       {selectedFile
                         ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • Listo para crear carpeta de proyecto`
-                        : 'Soporta videos hasta 500 MB • Guarda automáticamente en tu carpeta'}
+                        : 'MP4 o MOV hasta 25 MB · analiza los primeros 75 segundos'}
                     </p>
                   </div>
                 </div>
@@ -1371,13 +1375,14 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   className="px-7 py-4 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 disabled:opacity-50 font-black text-sm tracking-wide shadow-xl shadow-fuchsia-600/30 flex items-center justify-center gap-2 transition cursor-pointer"
                 >
                   <Wand2 className="w-5 h-5" />
-                  <span>Crear Proyecto y Clips 9:16</span>
+                  <span>Generar clips automáticamente (local)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             )}
 
             </>}
+            {inputMode==='upload'&&<p className="mt-3 text-xs text-slate-300">Al generar confirmas que tienes permiso para utilizar el archivo. El análisis por actividad sonora no utiliza IA de pago, pero consume recursos del servidor. Hasta 2 clips verticales, sin subtítulos ni seguimiento de personas. Los clips quedan disponibles por enlace no listado.</p>}
             {errorMsg && (
               <div className="mt-4 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
@@ -1547,7 +1552,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       <div className="pointer-events-none absolute top-3 left-3 right-3 flex items-center justify-between">
                         <span className="px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md border border-amber-400/40 text-amber-300 text-xs font-black flex items-center gap-1">
                           <Zap className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                          {(clip.score / 10).toFixed(1)}/10
+                          {clip.score===0?'Audio':(clip.score / 10).toFixed(1)+'/10'}
                         </span>
                         <span className="px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md text-white text-xs font-bold">
                           {formatMMSS(clip.duration)}
