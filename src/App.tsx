@@ -180,6 +180,72 @@ export function App() {
   const [inputMode, setInputMode] = useState<'link' | 'upload'>('link');
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Experimental live processing: feature flag reported by the backend.
+  const [liveAutoEnabled, setLiveAutoEnabled] = useState(false);
+  const [liveRightsConfirmed, setLiveRightsConfirmed] = useState(false);
+  const [liveUsageConfirmed, setLiveUsageConfirmed] = useState(false);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveError, setLiveError] = useState('');
+  const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
+  const [liveSession, setLiveSession] = useState<null | {
+    status: string; analyzedWindows: number; currentWindow?: number;
+    pendingJobs: number; maxMinutes: number; errors?: string[];
+    clips: {id:string;title:string;startSeconds:number;score:number;videoUrl:string}[];
+  }>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/live-auto/capabilities',{cache:'no-store',signal:controller.signal})
+      .then(r=>r.ok?r.json():null)
+      .then(data=>{if(!controller.signal.aborted)setLiveAutoEnabled(data?.enabled===true);})
+      .catch(()=>{});
+    return ()=>controller.abort();
+  },[]);
+  useEffect(()=>{
+    if(!liveSessionId)return;
+    let cancelled=false;
+    const update=async()=>{
+      try{
+        const response=await fetch('/api/live-auto/session/'+liveSessionId,
+          {cache:'no-store',credentials:'include'});
+        const data=await response.json();
+        if(!cancelled){
+          if(!response.ok)throw new Error(data.error||'No se pudo consultar el directo.');
+          setLiveSession(data.session);
+        }
+      }catch(err){if(!cancelled)setLiveError(err instanceof Error?err.message:'Error consultando el directo.');}
+    };
+    void update();
+    const interval=window.setInterval(()=>void update(),7000);
+    return ()=>{cancelled=true;window.clearInterval(interval);};
+  },[liveSessionId]);
+  const startLiveAuto=async()=>{
+    if(liveBusy||!liveRightsConfirmed||!liveUsageConfirmed||!videoUrl.trim())return;
+    setLiveBusy(true);setLiveError('');
+    try{
+      const response=await fetch('/api/live-auto/start',{
+        method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({url:videoUrl.trim(),confirmRights:true,confirmUsage:true})
+      });
+      const result=await response.json();
+      if(!response.ok||result.ok!==true)throw new Error(result.error||'No se pudo iniciar el directo.');
+      setLiveSessionId(result.session.id);setLiveSession(result.session);
+    }catch(err){setLiveError(err instanceof Error?err.message:'Error iniciando captura.');}
+    finally{setLiveBusy(false);}
+  };
+  const stopLiveAuto=async()=>{
+    if(!liveSessionId||liveBusy)return;
+    setLiveBusy(true);setLiveError('');
+    try{
+      const response=await fetch('/api/live-auto/session/'+liveSessionId+'/stop',
+        {method:'POST',credentials:'include'});
+      const result=await response.json();
+      if(!response.ok||result.ok!==true)throw new Error(result.error||'No se pudo detener.');
+      setLiveSession(prev=>prev?{...prev,status:'stopping'}:prev);
+    }catch(err){setLiveError(err instanceof Error?err.message:'No se pudo detener.');}
+    finally{setLiveBusy(false);}
+  };
+
   const [clipDuration, setClipDuration] = useState<number>(30);
   const [clipCount, setClipCount] = useState<number>(3);
   const [selectedPreset, setSelectedPreset] = useState<string>('hormozi');
@@ -954,6 +1020,78 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </button>
               )}
             </div>
+
+            {inputMode==='link' && liveAutoEnabled && (
+              <section className="mb-6 rounded-2xl border border-red-400/30 bg-red-950/20 p-5 space-y-3">
+                <div className="flex items-center gap-2 text-red-200 font-black">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  Modo directo automático · EXPERIMENTAL
+                </div>
+                <p className="text-xs text-slate-300">
+                  Detecta automáticamente los mejores momentos en ventanas de 75 segundos y prepara
+                  clips para revisar mientras continúa el directo. Límite de 10 minutos por prueba.
+                  La captura de YouTube puede fallar; no incluye todavía seguimiento visual de personas.
+                </p>
+                {!liveSessionId && (
+                  <>
+                    <label className="flex items-start gap-2 text-xs text-slate-200">
+                      <input type="checkbox" checked={liveRightsConfirmed}
+                        onChange={e=>setLiveRightsConfirmed(e.target.checked)} />
+                      Tengo permiso para capturar, analizar y recortar esta transmisión.
+                    </label>
+                    <label className="flex items-start gap-2 text-xs text-slate-200">
+                      <input type="checkbox" checked={liveUsageConfirmed}
+                        onChange={e=>setLiveUsageConfirmed(e.target.checked)} />
+                      Entiendo que cada fragmento utiliza servidor y servicios de transcripción e IA,
+                      que pueden generar cargos.
+                    </label>
+                    <button type="button" onClick={startLiveAuto}
+                      disabled={!videoUrl.trim()||!liveRightsConfirmed||!liveUsageConfirmed||liveBusy}
+                      className="px-5 py-2.5 rounded-xl font-bold text-sm bg-red-600 hover:bg-red-500 disabled:opacity-40">
+                      {liveBusy?'Iniciando...':'🔴 Iniciar detección automática'}
+                    </button>
+                  </>
+                )}
+                {liveSessionId && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-white">
+                      Estado: <b>{liveSession?.status||'iniciando'}</b> · Ventanas capturadas:
+                      {' '}{liveSession?.analyzedWindows||0} · Procesamientos pendientes:
+                      {' '}{liveSession?.pendingJobs||0}
+                    </p>
+                    <button onClick={stopLiveAuto} type="button" disabled={liveBusy||
+                      ['stopping','stopped','error','capture_finished'].includes(liveSession?.status||'')}
+                      className="px-4 py-2 rounded-lg bg-white/10 border border-red-300/30
+                        disabled:opacity-50 font-bold text-sm">
+                      Detener captura
+                    </button>
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {(liveSession?.clips||[]).map(clip=>(
+                        <article key={clip.id} className="p-3 rounded-xl bg-black/40 border border-white/10">
+                          <div className="text-sm font-bold mb-1">{clip.title}</div>
+                          <p className="text-xs text-slate-300 mb-2">
+                            Minuto {(clip.startSeconds/60).toFixed(1)} · Puntuación IA {clip.score}
+                          </p>
+                          <video controls preload="none" src={clip.videoUrl}
+                            className="rounded-lg w-full max-h-72" />
+                          <a href={clip.videoUrl.replace('/clips/','/api/download/')}
+                            className="inline-flex mt-2 text-fuchsia-300 text-xs font-bold" download>
+                            Descargar MP4
+                          </a>
+                        </article>
+                      ))}
+                    </div>
+                    {(liveSession?.clips||[]).length===0 && (
+                      <p className="text-xs text-slate-400">Los clips destacados aparecerán aquí al procesarse.</p>
+                    )}
+                    {(liveSession?.errors||[]).map((error,index)=>(
+                      <p key={index} className="text-xs text-red-300">{error}</p>
+                    ))}
+                  </div>
+                )}
+                {liveError && <p role="alert" className="text-xs text-red-300">{liveError}</p>}
+              </section>
+            )}
 
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
