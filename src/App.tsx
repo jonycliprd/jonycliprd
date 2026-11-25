@@ -227,6 +227,50 @@ export function App() {
   const [dramaEnabled, setDramaEnabled] = useState(false);
   const [dramaBusy, setDramaBusy] = useState(false);
   const [dramaError, setDramaError] = useState('');
+  const [dramaVideoEnabled, setDramaVideoEnabled] = useState(false);
+  const [dramaVideoTask, setDramaVideoTask] = useState('');
+  const [dramaVideoState, setDramaVideoState] = useState('');
+  const [dramaVideoBusy, setDramaVideoBusy] = useState(false);
+  const [dramaVideoError, setDramaVideoError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/dramas/video/status', {signal:controller.signal,cache:'no-store'})
+      .then(r=>r.ok?r.json():null)
+      .then(data=>{if(!controller.signal.aborted)setDramaVideoEnabled(data?.enabled===true);})
+      .catch(()=>{});
+    return ()=>controller.abort();
+  },[]);
+  const startDramaVideo = async () => {
+    if (!dramaResult || !dramaVideoEnabled || dramaVideoBusy) return;
+    if (!window.confirm('¿Generar un video animado PRIVADO de prueba de 15 segundos? Esta operación consume créditos de generación de video de Runway. No se publicará en YouTube.')) return;
+    setDramaVideoBusy(true);
+    setDramaVideoError('');
+    try {
+      const response=await fetch('/api/dramas/video/start',{
+        method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({drama:dramaResult,confirmPaidGeneration:true})
+      });
+      const data=await response.json();
+      if(!response.ok || data?.ok!==true || typeof data.id!=='string')throw new Error(data.error||'No se pudo iniciar el video.');
+      setDramaVideoTask(data.id);
+      setDramaVideoState(data.status||'PENDING');
+    } catch(err) {setDramaVideoError(err instanceof Error?err.message:'Error iniciando el video.');}
+    finally{setDramaVideoBusy(false);}
+  };
+  const refreshDramaVideo = async () => {
+    if (!dramaVideoTask || dramaVideoBusy) return;
+    setDramaVideoBusy(true);setDramaVideoError('');
+    try {
+      const response=await fetch('/api/dramas/video/task/'+encodeURIComponent(dramaVideoTask),{
+        credentials:'include',cache:'no-store'
+      });
+      const data=await response.json();
+      if(!response.ok || data?.ok!==true)throw new Error(data.error||'No se pudo consultar el video.');
+      setDramaVideoState(data.status);
+    } catch(err) {setDramaVideoError(err instanceof Error?err.message:'Error consultando el video.');}
+    finally{setDramaVideoBusy(false);}
+  };
+
   const [dramaResult, setDramaResult] = useState<null | {
     title: string; hook: string; durationSeconds: number;
     characters: { name: string; description: string }[];
@@ -1587,7 +1631,34 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </div>
               ))}</div>
               <p className="text-sm font-bold">Final: {dramaResult.ending}</p>
-              <p className="text-xs text-amber-200">Este resultado es un guion, no un MP4. Las escenas deberán producirse con contenido propio o autorizado antes de publicarse.</p>
+              {dramaVideoEnabled && (
+                <div className="rounded-2xl border border-fuchsia-400/30 bg-fuchsia-950/20 p-4 space-y-3">
+                  <h3 className="font-bold">Vista previa cinematográfica con IA</h3>
+                  <p className="text-sm text-slate-300">Crea una vista previa animada de 15 segundos, con tres planos, movimiento y audio generado. La producción completa de 30–60 segundos sigue en desarrollo.</p>
+                  <p className="text-xs text-amber-200">Consume créditos de Runway. Solo se inicia después de confirmar; no publica en YouTube.</p>
+                  {!dramaVideoTask ? (
+                    <button type="button" onClick={startDramaVideo} disabled={dramaVideoBusy}
+                      className="rounded-xl bg-fuchsia-600 px-4 py-3 font-bold disabled:opacity-50">
+                      {dramaVideoBusy?'Iniciando…':'Generar vista previa animada · 15 s'}
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm">Estado: <strong>{dramaVideoState==='SUCCEEDED'?'Video listo':dramaVideoState==='FAILED'?'Falló':dramaVideoState==='CANCELLED'?'Cancelado':'Generándose'}</strong></p>
+                      {dramaVideoState==='SUCCEEDED' ? (
+                        <a href={'/api/dramas/video/file/'+encodeURIComponent(dramaVideoTask)}
+                          className="inline-block rounded-xl bg-fuchsia-600 px-4 py-3 font-bold">Descargar video MP4</a>
+                      ) : (
+                        <button type="button" onClick={refreshDramaVideo} disabled={dramaVideoBusy}
+                          className="rounded-xl border border-white/25 px-4 py-3 disabled:opacity-50">
+                          {dramaVideoBusy?'Consultando…':'Consultar progreso'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {dramaVideoError&&<p role="alert" className="text-sm text-rose-300">{dramaVideoError}</p>}
+                </div>
+              )}
+              <p className="text-xs text-amber-200">Este resultado es un guion y un plan de escenas. La generación completa del MP4, voces por personaje y banda sonora personalizada todavía están en desarrollo.</p>
             </section>
           )}
         </main>
