@@ -7,6 +7,10 @@
     {
       "source": "/api/connections/providers",
       "destination": "https://jonycliprd-backend-production.up.railway.app/api/connections/providers"
+    },
+    {
+      "source": "/api/dramas/:path*",
+      "destination": "https://jonycliprd-backend-production.up.railway.app/api/dramas/:path*"
     }
   ]
 }
