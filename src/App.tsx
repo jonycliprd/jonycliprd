@@ -183,6 +183,28 @@ export function App() {
 
   // Experimental live processing: feature flag reported by the backend.
   const [liveAutoEnabled, setLiveAutoEnabled] = useState(false);
+  const [livePreview,setLivePreview]=useState<null|{videoId:string;title:string;channel:string;thumbnail:string}>(null);
+  const [livePreviewLoading,setLivePreviewLoading]=useState(false);
+  const [livePreviewError,setLivePreviewError]=useState('');
+  useEffect(()=>{
+    setLivePreview(null);setLivePreviewError('');setLivePreviewLoading(false);
+    if(inputMode!=='link'||!liveAutoEnabled||!videoUrl.trim())return;
+    let parsed: URL;
+    try {parsed=new URL(videoUrl.trim());}catch{return;}
+    if(parsed.protocol!=='https:'||!['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(parsed.hostname))return;
+    const controller=new AbortController();
+    const timer=window.setTimeout(async()=>{
+      setLivePreviewLoading(true);
+      try{
+        const response=await fetch('/api/live-auto/preview?url='+encodeURIComponent(videoUrl.trim()),{signal:controller.signal,cache:'no-store'});
+        const data=await response.json();
+        if(!response.ok||!data.ok)throw new Error(data.error||'Vista previa no disponible.');
+        if(!controller.signal.aborted)setLivePreview(data);
+      }catch(err){if(!controller.signal.aborted)setLivePreviewError(err instanceof Error?err.message:'Vista previa no disponible.');}
+      finally{if(!controller.signal.aborted)setLivePreviewLoading(false);}
+    },650);
+    return ()=>{controller.abort();window.clearTimeout(timer);};
+  },[videoUrl,inputMode,liveAutoEnabled]);
   const [liveRightsConfirmed, setLiveRightsConfirmed] = useState(false);
   const [liveUsageConfirmed, setLiveUsageConfirmed] = useState(false);
   const [liveBusy, setLiveBusy] = useState(false);
@@ -1040,6 +1062,15 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </p>
                 {!liveSessionId && (
                   <>
+                    <label className="block text-xs font-bold text-slate-200" htmlFor="live-source-url">Enlace de la transmisión</label>
+                    <input id="live-source-url" type="url" inputMode="url" value={videoUrl} onChange={e=>setVideoUrl(e.target.value)}
+                      placeholder="Pega aquí el enlace de YouTube" className="w-full min-w-0 rounded-xl border border-white/20 bg-black/30 p-3 text-sm text-white" />
+                    {livePreviewLoading&&<p role="status" className="text-xs text-slate-300">Buscando canal y miniatura...</p>}
+                    {livePreview&&<article className="rounded-xl border border-white/10 overflow-hidden bg-black/30">
+                      <img src={livePreview.thumbnail} alt="Miniatura del video de YouTube" className="w-full aspect-video object-cover" />
+                      <div className="p-3 space-y-1"><p className="font-bold text-white break-words">{livePreview.title}</p><p className="text-xs text-slate-300">{livePreview.channel}</p></div>
+                    </article>}
+                    {livePreviewError&&<p className="text-xs text-amber-300">{livePreviewError} Puedes intentar la captura si tienes permiso.</p>}
                     <label className="flex items-start gap-2 text-xs text-slate-200">
                       <input type="checkbox" checked={liveRightsConfirmed}
                         onChange={e=>setLiveRightsConfirmed(e.target.checked)} />
@@ -1054,7 +1085,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                     <button type="button" onClick={startLiveAuto}
                       disabled={!videoUrl.trim()||!liveRightsConfirmed||!liveUsageConfirmed||liveBusy}
                       className="px-5 py-2.5 rounded-xl font-bold text-sm bg-red-600 hover:bg-red-500 disabled:opacity-40">
-                      {liveBusy?'Iniciando...':'🔴 Iniciar detección automática'}
+                      {liveBusy?'Iniciando...':'🔴 Generar clips automáticamente'}
                     </button>
                   </>
                 )}
@@ -1098,6 +1129,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                   </div>
                 )}
                 {liveError && <p role="alert" className="text-xs text-red-300">{liveError}</p>}
+                {liveError.includes('Conecta tu cuenta')&&<button type="button" onClick={()=>setActiveTab('networks')} className="px-4 py-2 rounded-lg bg-white/10 text-sm font-bold">Conectar mi cuenta (no el canal del directo)</button>}
               </section>
             )}
 
