@@ -183,6 +183,7 @@ export function App() {
 
   // Experimental live processing: feature flag reported by the backend.
   const [liveAutoEnabled, setLiveAutoEnabled] = useState(false);
+  const [showLegacyLive, setShowLegacyLive] = useState(false);
   const [livePreview,setLivePreview]=useState<null|{videoId:string;title:string;channel:string;thumbnail:string}>(null);
   const [livePreviewLoading,setLivePreviewLoading]=useState(false);
   const [livePreviewError,setLivePreviewError]=useState('');
@@ -1051,88 +1052,64 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
             </div>
 
             {inputMode==='link' && liveAutoEnabled && (
-              <section className="mb-6 rounded-2xl border border-red-400/30 bg-red-950/20 p-5 space-y-3">
-                <div className="flex items-center gap-2 text-red-200 font-black">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                  Modo directo automático · EXPERIMENTAL
+              <section aria-label="Generador de directos" className="mb-6 min-w-0 rounded-2xl bg-[#fafafa] p-3 sm:p-5 text-[#171120] space-y-4">
+                <h2 className="text-lg font-black">Directo automático</h2>
+                <div className="flex items-center gap-3 rounded-xl border border-[#dedbe3] bg-white px-3 py-4">
+                  <Link2 className="w-5 h-5 shrink-0 text-[#514a5c]" />
+                  <input aria-label="Enlace de YouTube" type="url" inputMode="url" value={videoUrl}
+                    readOnly={!!liveSessionId||liveBusy} onChange={e=>{setVideoUrl(e.target.value);setLiveRightsConfirmed(false);}}
+                    placeholder="Pega el enlace de YouTube" className="min-w-0 w-full bg-transparent text-sm text-[#171120] placeholder-[#817a8a] outline-none" />
                 </div>
-                <p className="text-xs text-slate-300">
-                  {liveDetectionMode==='audio_activity'?'Detecta cambios fuertes de audio y prepara clips verticales sin subtítulos ni puntuación viral.':'Analiza momentos destacados y prepara clips para revisar mientras continúa el directo.'}
-                  {' '}Límite de 10 minutos por prueba. La captura de YouTube puede fallar; no incluye todavía seguimiento visual de personas.
-                </p>
-                {!liveSessionId && (
-                  <>
-                    <label className="block text-xs font-bold text-slate-200" htmlFor="live-source-url">Enlace de la transmisión</label>
-                    <input id="live-source-url" type="url" inputMode="url" value={videoUrl} onChange={e=>setVideoUrl(e.target.value)}
-                      placeholder="Pega aquí el enlace de YouTube" className="w-full min-w-0 rounded-xl border border-white/20 bg-black/30 p-3 text-sm text-white" />
-                    {livePreviewLoading&&<p role="status" className="text-xs text-slate-300">Buscando canal y miniatura...</p>}
-                    {livePreview&&<article className="rounded-xl border border-white/10 overflow-hidden bg-black/30">
-                      <img src={livePreview.thumbnail} alt="Miniatura del video de YouTube" className="w-full aspect-video object-cover" />
-                      <div className="p-3 space-y-1"><p className="font-bold text-white break-words">{livePreview.title}</p><p className="text-xs text-slate-300">{livePreview.channel}</p></div>
-                    </article>}
-                    {livePreviewError&&<p className="text-xs text-amber-300">{livePreviewError} Puedes intentar la captura si tienes permiso.</p>}
-                    <label className="flex items-start gap-2 text-xs text-slate-200">
-                      <input type="checkbox" checked={liveRightsConfirmed}
-                        onChange={e=>setLiveRightsConfirmed(e.target.checked)} />
-                      Tengo permiso para capturar, analizar y recortar esta transmisión.
-                    </label>
-                    <label className="flex items-start gap-2 text-xs text-slate-200">
-                      <input type="checkbox" checked={liveUsageConfirmed}
-                        onChange={e=>setLiveUsageConfirmed(e.target.checked)} />
-                      Entiendo que el procesamiento consume recursos del servidor y puede generar cargos.
-                      {liveDetectionMode!=='audio_activity'&&' También puede utilizar servicios de transcripción e IA.'}
-                    </label>
-                    <button type="button" onClick={startLiveAuto}
-                      disabled={!videoUrl.trim()||!liveRightsConfirmed||!liveUsageConfirmed||liveBusy}
-                      className="px-5 py-2.5 rounded-xl font-bold text-sm bg-red-600 hover:bg-red-500 disabled:opacity-40">
-                      {liveBusy?'Iniciando...':'🔴 Generar clips automáticamente'}
-                    </button>
-                  </>
-                )}
-                {liveSessionId && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-white">
-                      Estado: <b>{liveSession?.status||'iniciando'}</b> · Ventanas capturadas:
-                      {' '}{liveSession?.analyzedWindows||0} · Procesamientos pendientes:
-                      {' '}{liveSession?.pendingJobs||0}
-                    </p>
-                    <button onClick={stopLiveAuto} type="button" disabled={liveBusy||
-                      ['stopping','stopped','error','capture_finished'].includes(liveSession?.status||'')}
-                      className="px-4 py-2 rounded-lg bg-white/10 border border-red-300/30
-                        disabled:opacity-50 font-bold text-sm">
-                      Detener captura
-                    </button>
-                    {liveFinished && <button type="button" onClick={()=>{setLiveSessionId(null);setLiveSession(null);setLiveError('');setLiveRightsConfirmed(false);setLiveUsageConfirmed(false);}} className="px-4 py-2 rounded-lg bg-white/10 font-bold text-sm">Iniciar otro directo</button>}
-                    {!!liveSession?.failedJobs && <p role="alert" className="text-xs text-red-300">{liveSession.failedJobs} fragmentos no se pudieron procesar.</p>}
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {(liveSession?.clips||[]).map(clip=>(
-                        <article key={clip.id} className="p-3 rounded-xl bg-black/40 border border-white/10">
-                          <div className="text-sm font-bold mb-1">{clip.title}</div>
-                          <p className="text-xs text-slate-300 mb-2">
-                            Tiempo relativo {(clip.startSeconds/60).toFixed(1)} min · {liveDetectionMode==='audio_activity'?'Actividad sonora':`Puntuación IA ${clip.score}`}
-                          </p>
-                          <video controls preload="none" src={clip.videoUrl}
-                            className="rounded-lg w-full max-h-72" />
-                          <a href={clip.videoUrl.replace('/clips/','/api/download/')}
-                            className="inline-flex mt-2 text-fuchsia-300 text-xs font-bold" download>
-                            Descargar MP4
-                          </a>
-                        </article>
-                      ))}
-                    </div>
-                    {(liveSession?.clips||[]).length===0 && (
-                      <p className="text-xs text-slate-400">{liveFinished?'La sesión terminó sin clips disponibles.':'Los clips destacados aparecerán aquí al procesarse.'}</p>
-                    )}
-                    {(liveSession?.errors||[]).map((error,index)=>(
-                      <p key={index} className="text-xs text-red-300">{error}</p>
-                    ))}
+                <article className="rounded-2xl bg-[#171120] p-3 sm:p-4 text-white space-y-3">
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-[#251735] flex items-center justify-center">
+                    {livePreview&&<img src={livePreview.thumbnail} alt="Miniatura original de la transmisión" className="absolute inset-0 w-full h-full object-cover" />}
+                    <span className="absolute top-3 left-3 rounded-md bg-[#dc2626] text-white text-xs font-bold px-2 py-1">DIRECTO</span>
+                    {livePreview ? <a href={'https://www.youtube.com/watch?v='+livePreview.videoId} target="_blank" rel="noopener noreferrer"
+                      aria-label="Ver video original en YouTube" className="relative flex items-center justify-center w-14 h-14 rounded-full bg-black/55 hover:bg-black/75 text-white"><Play className="w-7 h-7 fill-current" /></a>
+                      : <div className="relative flex flex-col items-center gap-3 text-[#cfc1df] px-4 text-center"><div className="rounded-full bg-white/15 p-4"><Play className="w-8 h-8 fill-white text-white" /></div><span className="text-xs sm:text-sm">{livePreviewLoading?'Buscando miniatura...':'Miniatura original de la transmisión'}</span></div>}
                   </div>
-                )}
-                {liveError && <p role="alert" className="text-xs text-red-300">{liveError}</p>}
-                {liveError.includes('Conecta tu cuenta')&&<button type="button" onClick={()=>setActiveTab('networks')} className="px-4 py-2 rounded-lg bg-white/10 text-sm font-bold">Conectar mi cuenta (no el canal del directo)</button>}
+                  <h3 className="text-base sm:text-lg font-bold break-words">{livePreview?.title||'Título original de la transmisión'}</h3>
+                  <p className="text-sm text-[#d0c9d8] break-words">{livePreview?.channel||'Nombre del canal de YouTube'}</p>
+                </article>
+                {livePreviewError&&<p role="status" className="text-xs text-amber-800">{livePreviewError} Puedes intentar la captura si tienes permiso.</p>}
+                {!liveSessionId && <>
+                  <div className="space-y-2 text-xs text-[#514a5c]">
+                    <label className="flex items-start gap-2"><input className="mt-0.5 accent-fuchsia-700 shrink-0" type="checkbox" checked={liveRightsConfirmed} onChange={e=>setLiveRightsConfirmed(e.target.checked)} />Tengo permiso para capturar y recortar esta transmisión.</label>
+                    <label className="flex items-start gap-2"><input className="mt-0.5 accent-fuchsia-700 shrink-0" type="checkbox" checked={liveUsageConfirmed} onChange={e=>setLiveUsageConfirmed(e.target.checked)} />Acepto el consumo de recursos del servidor, que puede generar cargos.</label>
+                  </div>
+                  <button type="button" onClick={startLiveAuto} disabled={!videoUrl.trim()||!liveRightsConfirmed||!liveUsageConfirmed||liveBusy}
+                    className="w-full min-w-0 flex items-center justify-center gap-2 rounded-xl bg-[#a21caf] hover:bg-[#86198f] disabled:opacity-60 py-4 px-2 text-white text-sm sm:text-base font-black uppercase">
+                    <Play className="w-4 h-4 shrink-0 fill-current" />{liveBusy?'Iniciando...':'Generar clips automáticamente'}
+                  </button>
+                </>}
+                {liveSessionId&&<div className="space-y-2">
+                  <p role="status" className="text-xs text-[#514a5c]">Estado: <b>{liveSession?.status||'iniciando'}</b> · Fragmentos: {liveSession?.analyzedWindows||0} · Pendientes: {liveSession?.pendingJobs||0}</p>
+                  <button onClick={stopLiveAuto} type="button" disabled={liveBusy||['stopping','stopped','error','capture_finished'].includes(liveSession?.status||'')} className="rounded-lg bg-[#a21caf] px-4 py-2 text-white font-bold text-xs disabled:opacity-50">Detener captura</button>
+                  {liveFinished&&<button type="button" onClick={()=>{setLiveSessionId(null);setLiveSession(null);setLiveError('');setLiveRightsConfirmed(false);setLiveUsageConfirmed(false);}} className="ml-2 rounded-lg border border-[#dedbe3] px-3 py-2 font-bold text-xs">Iniciar otro directo</button>}
+                  {!!liveSession?.failedJobs&&<p role="alert" className="text-xs text-red-700">{liveSession.failedJobs} fragmentos no se pudieron procesar.</p>}
+                </div>}
+                {liveError&&<p role="alert" className="text-xs text-red-700">{liveError}</p>}
+                {liveError.includes('Conecta tu cuenta')&&<button type="button" onClick={()=>setActiveTab('networks')} className="rounded-lg border border-[#dedbe3] px-4 py-2 text-sm font-bold">Conectar mi cuenta (no el canal del directo)</button>}
+                <div className="border-t border-[#dedbe3] pt-4 space-y-3">
+                  <h3 className="text-base sm:text-lg font-bold">Clips detectados automáticamente</h3>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    {(liveSession?.clips||[]).map(clip=><article key={clip.id} className="min-w-0 rounded-xl bg-[#20152d] p-2 text-white space-y-2">
+                      <video controls playsInline preload="none" src={clip.videoUrl} className="w-full aspect-[9/16] rounded-lg bg-[#39244c] object-contain" />
+                      <p className="text-[10px] sm:text-xs font-bold break-words">{clip.title}</p>
+                      <p className="text-[10px] text-[#d0c9d8]">{(clip.startSeconds/60).toFixed(1)} min · {liveDetectionMode==='audio_activity'?'Audio':'IA '+clip.score}</p>
+                      <a href={clip.videoUrl.replace('/clips/','/api/download/')} className="flex items-center gap-1 text-fuchsia-200 text-[10px] sm:text-xs font-bold" download><Download className="w-3 h-3 shrink-0"/> MP4</a>
+                    </article>)}
+                    {!(liveSession?.clips||[]).length&&[1,2,3].map(n=><div key={n} aria-hidden="true" className="rounded-xl bg-[#20152d] p-2"><div className="aspect-[9/16] rounded-lg bg-[#39244c] flex items-center justify-center"><div className="rounded-full bg-white/15 p-2"><Play className="w-4 h-4 fill-white text-white opacity-70" /></div></div></div>)}
+                  </div>
+                  {!(liveSession?.clips||[]).length&&<p className="text-xs text-[#514a5c]">{liveFinished?'La sesión terminó sin clips disponibles.':'Los clips reales aparecerán aquí al procesarse.'}</p>}
+                </div>
+                {(liveSession?.errors||[]).map((error,index)=><p key={index} className="text-xs text-red-700">{error}</p>)}
+                <p className="text-xs text-[#514a5c]">Experimental · máximo 10 minutos por prueba. Detección por actividad sonora, sin subtítulos ni seguimiento visual de personas. El estado en vivo del enlace no se verifica en la vista previa.</p>
               </section>
             )}
 
+            {inputMode==='link'&&liveAutoEnabled&&<button type="button" onClick={()=>setShowLegacyLive(v=>!v)} className="mb-4 text-sm font-semibold text-fuchsia-300">{showLegacyLive?'Ocultar generador convencional':'Mostrar generador convencional (puede usar IA de pago)'}</button>}
+            {(inputMode!=='link'||!liveAutoEnabled||showLegacyLive)&&<>
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -1404,6 +1381,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               </div>
             )}
 
+            </>}
             {errorMsg && (
               <div className="mt-4 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
