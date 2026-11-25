@@ -176,7 +176,7 @@ const formatMMSS = (sec: number) => {
 };
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans' | 'networks'>('create');
   const [inputMode, setInputMode] = useState<'link' | 'upload'>('link');
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -220,6 +220,58 @@ export function App() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(true);
   const [isRenderingEdit, setIsRenderingEdit] = useState<boolean>(false);
   const [renderSuccessNotice, setRenderSuccessNotice] = useState<string>('');
+
+  const [youtubeStatus, setYoutubeStatus] = useState<{
+    loading: boolean; ready: boolean; connected: boolean; channel?: string;
+  }>({ loading: true, ready: false, connected: false });
+  const [youtubeError, setYoutubeError] = useState('');
+  const [disconnectBusy, setDisconnectBusy] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
+    const check = async () => {
+      try {
+        const response = await fetch('/api/connections/providers', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) throw new Error('Provider unavailable');
+        const providers = await response.json();
+        if (providers?.providers?.youtube?.connectEnabled !== true) {
+          setYoutubeStatus({ loading: false, ready: false, connected: false });
+          return;
+        }
+        const meResponse = await fetch('/api/auth/youtube/me', {
+          credentials: 'include', cache: 'no-store', signal: controller.signal
+        });
+        if (!meResponse.ok) throw new Error('Session unavailable');
+        const me = await meResponse.json();
+        setYoutubeStatus({ loading: false, ready: me.enabled === true,
+          connected: me.connected === true, channel: typeof me.user?.channel?.title === 'string'
+            ? me.user.channel.title : undefined });
+      } catch {
+        if (!controller.signal.aborted) setYoutubeError('No se pudo consultar el estado de YouTube.');
+        setYoutubeStatus({ loading: false, ready: false, connected: false });
+      } finally { window.clearTimeout(timeout); }
+    };
+    void check();
+    return () => { controller.abort(); window.clearTimeout(timeout); };
+  }, []);
+  const disconnectYoutube = async () => {
+    if (!youtubeStatus.ready || !youtubeStatus.connected || disconnectBusy) return;
+    if (!window.confirm('¿Desconectar el canal de YouTube?')) return;
+    setDisconnectBusy(true);
+    setYoutubeError('');
+    try {
+      const response = await fetch('/api/auth/youtube/disconnect', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      if (!response.ok) throw new Error('No se pudo desconectar el canal.');
+      const data = await response.json();
+      if (data.ok !== true || data.connected !== false) throw new Error('La desconexión no fue confirmada.');
+      setYoutubeStatus({ loading: false, ready: true, connected: false });
+    } catch (err) {
+      setYoutubeError(err instanceof Error ? err.message : 'No se pudo desconectar el canal.');
+    } finally { setDisconnectBusy(false); }
+  };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const editorVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -685,6 +737,13 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
             </button>
 
             <button
+              onClick={() => setActiveTab('networks')}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition ${activeTab === 'networks' ? 'bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white shadow' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
+            >
+              <Link2 className="w-4 h-4" /> Mis Redes
+            </button>
+
+            <button
               onClick={() => setActiveTab('plans')}
               className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 transition ${
                 activeTab === 'plans'
@@ -738,6 +797,10 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
           className={`px-3 py-1.5 rounded-lg font-semibold ${activeTab === 'folders' ? 'bg-fuchsia-600' : 'text-slate-400'}`}
         >
           Carpetas ({projects.length})
+        </button>
+        <button onClick={() => setActiveTab('networks')}
+          className={`px-3 py-1.5 rounded-lg font-semibold ${activeTab === 'networks' ? 'bg-fuchsia-600' : 'text-slate-400'}`}>
+          Mis Redes
         </button>
       </div>
 
@@ -1346,6 +1409,36 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               ))}
             </div>
           )}
+        </main>
+      )}
+
+      {activeTab === 'networks' && (
+        <main className="max-w-4xl mx-auto px-4 py-10 space-y-5">
+          <h1 className="text-3xl font-black">Mis Redes Sociales</h1>
+          <p className="text-sm text-slate-300">Conecta tu canal de YouTube mediante la autorización oficial de Google. Publicar Shorts todavía no está disponible.</p>
+          <section className="rounded-3xl border border-fuchsia-500/30 bg-[#140d2b] p-6 space-y-4">
+            <h2 className="text-xl font-bold">YouTube</h2>
+            <p className="text-sm text-slate-300">{youtubeStatus.connected
+              ? `Conectado: ${youtubeStatus.channel || 'Tu canal de YouTube'}`
+              : youtubeStatus.loading ? 'Comprobando conexión…'
+              : youtubeStatus.ready ? 'Puedes conectar tu canal con Google.'
+              : 'Conexión de Google disponible próximamente.'}</p>
+            {youtubeError && <p role="alert" className="text-sm text-rose-300">{youtubeError}</p>}
+            {youtubeStatus.connected ? (
+              <button type="button" onClick={disconnectYoutube} disabled={disconnectBusy}
+                className="rounded-xl border border-rose-400/40 px-4 py-3 font-semibold text-rose-200 disabled:opacity-50">
+                {disconnectBusy ? 'Desconectando…' : 'Desconectar YouTube'}
+              </button>
+            ) : (
+              <button type="button"
+                disabled={!youtubeStatus.ready}
+                onClick={() => { if (youtubeStatus.ready) window.location.assign('/api/auth/youtube/start'); }}
+                className="rounded-xl bg-fuchsia-600 px-4 py-3 font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                {youtubeStatus.ready ? 'Conectar con Google' : 'Conectar cuenta · Próximamente'}
+              </button>
+            )}
+            <p className="text-xs text-amber-200">Nunca escribas tu contraseña de Google dentro de JONY CLIP RD. Los permisos se autorizan únicamente en Google.</p>
+          </section>
         </main>
       )}
 
