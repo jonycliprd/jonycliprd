@@ -293,6 +293,28 @@ export function App() {
       window.location.assign('/api/auth/youtube/start');
     }
   };
+  const [youtubeDisconnectBusy, setYoutubeDisconnectBusy] = useState(false);
+  const [youtubeDisconnectError, setYoutubeDisconnectError] = useState('');
+  const disconnectYoutube = async () => {
+    if (!youtubeConnection.ready || !youtubeConnection.connected || youtubeDisconnectBusy) return;
+    if (!window.confirm('¿Desconectar tu canal de YouTube? Tendrás que autorizarlo de nuevo para volver a conectarlo.')) return;
+    setYoutubeDisconnectError('');
+    setYoutubeDisconnectBusy(true);
+    try {
+      const response = await fetch('/api/auth/youtube/disconnect', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      if (!response.ok) throw new Error('No se pudo desconectar el canal. Inténtalo nuevamente.');
+      const status = await response.json();
+      if (status.ok !== true || status.connected !== false) throw new Error('No se confirmó la desconexión.');
+      setYoutubeConnection({ ready: true, connected: false, loading: false });
+    } catch (err) {
+      setYoutubeDisconnectError(err instanceof Error ? err.message : 'Error desconectando YouTube.');
+    } finally {
+      setYoutubeDisconnectBusy(false);
+    }
+  };
 
   const [clipFeedback, setClipFeedback] = useState<Record<string, 'like' | 'dislike'>>(() => {
     try { return JSON.parse(localStorage.getItem('jonycliprd_clip_feedback_v1') || '{}'); } catch { return {}; }
@@ -1732,11 +1754,20 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                         className={`flex-1 rounded-xl border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2.5 text-xs font-bold text-fuchsia-200 ${network.id !== 'youtube' || !youtubeConnection.ready || youtubeConnection.connected ? 'opacity-60 cursor-not-allowed' : 'hover:bg-fuchsia-500/20'}`}>
                         {network.id === 'youtube' ? youtubeConnectionLabel : 'Conectar cuenta · Próximamente'}
                       </button>
+                      {network.id === 'youtube' && youtubeConnection.connected && (
+                        <button type="button" onClick={disconnectYoutube} disabled={youtubeDisconnectBusy}
+                          className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-xs font-bold text-rose-200 disabled:opacity-50">
+                          {youtubeDisconnectBusy ? 'Desconectando…' : 'Desconectar'}
+                        </button>
+                      )}
                       <a href={network.site} target="_blank" rel="noopener noreferrer"
                         className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-xs font-bold text-slate-200">
                         Abrir <ExternalLink className="inline h-3.5 w-3.5" />
                       </a>
                     </div>
+                    {network.id === 'youtube' && youtubeDisconnectError && (
+                      <p role="alert" className="text-xs text-rose-300">{youtubeDisconnectError}</p>
+                    )}
                   </div>
                 );
               })}
