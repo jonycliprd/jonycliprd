@@ -47,7 +47,9 @@ interface SubtitleLine {
   wordOverrides?: Record<number, WordOverride>;
 }
 
+type ProfessionalLayout = 'fill'|'blur'|'split'|'auto';
 interface ClipItem {
+  layoutMode?: ProfessionalLayout;
   id: string | number;
   jobId?: string;
   clipIndex?: number;
@@ -276,6 +278,9 @@ export function App() {
     finally{setLiveBusy(false);}
   };
 
+  const [linkLayout,setLinkLayout]=useState<ProfessionalLayout>('fill');
+  const [uploadLayout,setUploadLayout]=useState<ProfessionalLayout>('auto');
+  const professionalLayout=inputMode==='link'?linkLayout:uploadLayout;
   const [clipDuration, setClipDuration] = useState<number>(30);
   const [clipCount, setClipCount] = useState<number>(3);
   const [selectedPreset, setSelectedPreset] = useState<string>('hormozi');
@@ -583,6 +588,7 @@ export function App() {
         formData.append('video',selectedFile,selectedFile.name);
       }else{
         formData.append('clipDuration',String(clipDuration));
+        formData.append('layoutMode',professionalLayout);
         formData.append('clipCount',String(clipCount));
         formData.append('subtitleStyle',selectedPreset);
         formData.append('activeColorAss',selectedActiveColorAss);
@@ -616,6 +622,7 @@ export function App() {
         start: Number(c.start) || 0,
         end: Number(c.end) || clipDuration,
         duration: Number(c.duration) || clipDuration,
+        layoutMode: ['fill','blur','split','auto'].includes(c.layoutMode)?c.layoutMode:undefined,
         subtitleStyle: c.subtitleStyle || selectedPreset,
         activeColorAss: c.activeColorAss || selectedActiveColorAss,
         enableEmojis: typeof c.enableEmojis === 'boolean' ? c.enableEmojis : enableAutoEmojis,
@@ -750,6 +757,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
           rawVideoUrl: editingClip.rawVideoUrl || editingClip.downloadUrl,
           subtitles: editSubtitles,
           subtitleStyle: editStyleId,
+          layoutMode: editingClip.layoutMode || 'auto',
           activeColorAss: editColorAss,
           enableEmojis: editEnableEmojis,
           customOptions: {
@@ -1112,6 +1120,13 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
             {inputMode==='link'&&<div className="mb-5 mt-6 space-y-1 border-t border-white/10 pt-5"><h2 className="text-lg font-black text-white flex items-center gap-2"><Clapperboard className="w-5 h-5 text-fuchsia-400"/> Estudio profesional · CapCut</h2><p className="text-xs text-slate-300">Para videos normales o grabaciones ya terminadas. Cantidad, duración, colores, emojis y subtítulos dinámicos. Independiente del directo automático; puede utilizar IA de pago.</p></div>}
             {inputMode==='upload'&&<div className="mb-5 space-y-2"><div className="grid sm:grid-cols-2 gap-2"><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('professional');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='professional'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Estudio profesional · CapCut</button><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('local');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='local'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Recorte local · Experimental</button></div><p className="text-xs text-slate-300">{uploadMode==='professional'?'Subtítulos dinámicos, selección por IA, cantidad y duración de clips. Puede generar cargos de API.':'Recorte por actividad sonora sin API de pago; consume recursos del servidor.'}</p></div>}
             {(inputMode==='link'||uploadMode==='professional')&&<>
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-6 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-purple-200">Encuadre vertical 9:16 · 1080 × 1920</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {([{id:'fill',label:'Pantalla completa'},{id:'blur',label:'Fondo desenfocado'},{id:'split',label:'Pantalla dividida'},{id:'auto',label:'Automático original'}] as {id:ProfessionalLayout;label:string}[]).map(mode=><button key={mode.id} type="button" aria-pressed={professionalLayout===mode.id} disabled={isProcessing} onClick={()=>inputMode==='link'?setLinkLayout(mode.id):setUploadLayout(mode.id)} className={'rounded-xl p-3 text-xs font-bold border '+(professionalLayout===mode.id?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/10 text-purple-200')}>{mode.label}</button>)}
+              </div>
+              <p className="text-xs text-slate-400">Pantalla completa recorta los laterales de un video horizontal sin deformarlo. Todavía no incluye seguimiento de personas.</p>
+            </div>
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
