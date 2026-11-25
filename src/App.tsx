@@ -179,6 +179,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<'create' | 'studio' | 'folders' | 'plans' | 'networks' | 'dramas'>('create');
   const [inputMode, setInputMode] = useState<'link' | 'upload'>('link');
   const [videoUrl, setVideoUrl] = useState('');
+  const [liveSourceUrl,setLiveSourceUrl]=useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Experimental live processing: feature flag reported by the backend.
@@ -189,15 +190,15 @@ export function App() {
   const [livePreviewError,setLivePreviewError]=useState('');
   useEffect(()=>{
     setLivePreview(null);setLivePreviewError('');setLivePreviewLoading(false);
-    if(inputMode!=='link'||!liveAutoEnabled||!videoUrl.trim())return;
+    if(inputMode!=='link'||!liveAutoEnabled||!liveSourceUrl.trim())return;
     let parsed: URL;
-    try {parsed=new URL(videoUrl.trim());}catch{return;}
+    try {parsed=new URL(liveSourceUrl.trim());}catch{return;}
     if(parsed.protocol!=='https:'||!['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(parsed.hostname))return;
     const controller=new AbortController();
     const timer=window.setTimeout(async()=>{
       setLivePreviewLoading(true);
       try{
-        const response=await fetch('/api/live-auto/preview?url='+encodeURIComponent(videoUrl.trim()),{signal:controller.signal,cache:'no-store'});
+        const response=await fetch('/api/live-auto/preview?url='+encodeURIComponent(liveSourceUrl.trim()),{signal:controller.signal,cache:'no-store'});
         const data=await response.json();
         if(!response.ok||!data.ok)throw new Error(data.error||'Vista previa no disponible.');
         if(!controller.signal.aborted)setLivePreview(data);
@@ -205,7 +206,7 @@ export function App() {
       finally{if(!controller.signal.aborted)setLivePreviewLoading(false);}
     },650);
     return ()=>{controller.abort();window.clearTimeout(timer);};
-  },[videoUrl,inputMode,liveAutoEnabled]);
+  },[liveSourceUrl,inputMode,liveAutoEnabled]);
   const [liveGuestAccess,setLiveGuestAccess]=useState(false);
   const [liveBusy, setLiveBusy] = useState(false);
   const [liveError, setLiveError] = useState('');
@@ -249,12 +250,12 @@ export function App() {
     return ()=>{cancelled=true;window.clearInterval(interval);};
   },[liveSessionId,liveFinished]);
   const startLiveAuto=async()=>{
-    if(liveBusy||!liveGuestAccess||!videoUrl.trim())return;
+    if(liveBusy||!liveGuestAccess||!liveSourceUrl.trim())return;
     setLiveBusy(true);setLiveError('');
     try{
       const response=await fetch('/api/live-auto/start',{
         method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({url:videoUrl.trim(),confirmRights:true,confirmUsage:true})
+        body:JSON.stringify({url:liveSourceUrl.trim(),confirmRights:true,confirmUsage:true})
       });
       const result=await response.json();
       if(!response.ok||result.ok!==true)throw new Error(result.error||'No se pudo iniciar el directo.');
@@ -1059,9 +1060,9 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 <h2 className="text-lg font-black">Directo automático</h2>
                 <div className="flex items-center gap-3 rounded-xl border border-[#dedbe3] bg-white px-3 py-4">
                   <Link2 className="w-5 h-5 shrink-0 text-[#514a5c]" />
-                  <input aria-label="Enlace de YouTube" type="url" inputMode="url" value={videoUrl}
-                    readOnly={!!liveSessionId||liveBusy} onChange={e=>setVideoUrl(e.target.value)}
-                    placeholder="Pega el enlace de YouTube" className="min-w-0 w-full bg-transparent text-sm text-[#171120] placeholder-[#817a8a] outline-none" />
+                  <input aria-label="Enlace de transmisión en vivo" type="url" inputMode="url" value={liveSourceUrl}
+                    readOnly={!!liveSessionId||liveBusy} onChange={e=>setLiveSourceUrl(e.target.value)}
+                    placeholder="Pega el enlace de la transmisión en vivo de YouTube" className="min-w-0 w-full bg-transparent text-sm text-[#171120] placeholder-[#817a8a] outline-none" />
                 </div>
                 <article className="rounded-2xl bg-[#171120] p-3 sm:p-4 text-white space-y-3">
                   <div className="relative aspect-video rounded-xl overflow-hidden bg-[#251735] flex items-center justify-center">
@@ -1076,7 +1077,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                 </article>
                 {livePreviewError&&<p role="status" className="text-xs text-amber-800">{livePreviewError} Puedes intentar la captura si tienes permiso.</p>}
                 {!liveSessionId && <>
-                  <button type="button" onClick={startLiveAuto} disabled={!videoUrl.trim()||!liveGuestAccess||liveBusy}
+                  <button type="button" onClick={startLiveAuto} disabled={!liveSourceUrl.trim()||!liveGuestAccess||liveBusy}
                     className="w-full min-w-0 flex items-center justify-center gap-2 rounded-xl bg-[#a21caf] hover:bg-[#86198f] disabled:opacity-60 py-4 px-2 text-white text-sm sm:text-base font-black uppercase">
                     <Play className="w-4 h-4 shrink-0 fill-current" />{liveBusy?'Iniciando...':'Generar clips automáticamente'}
                   </button>
@@ -1108,7 +1109,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
               </section>
             )}
 
-            {inputMode==='link'&&<div className="mb-5 mt-6 space-y-1 border-t border-white/10 pt-5"><h2 className="text-lg font-black text-white flex items-center gap-2"><Clapperboard className="w-5 h-5 text-fuchsia-400"/> Estudio profesional · CapCut</h2><p className="text-xs text-slate-300">Generador original: cantidad, duración, colores, emojis y subtítulos dinámicos. Independiente del directo automático; puede utilizar IA de pago.</p></div>}
+            {inputMode==='link'&&<div className="mb-5 mt-6 space-y-1 border-t border-white/10 pt-5"><h2 className="text-lg font-black text-white flex items-center gap-2"><Clapperboard className="w-5 h-5 text-fuchsia-400"/> Estudio profesional · CapCut</h2><p className="text-xs text-slate-300">Para videos normales o grabaciones ya terminadas. Cantidad, duración, colores, emojis y subtítulos dinámicos. Independiente del directo automático; puede utilizar IA de pago.</p></div>}
             {inputMode==='upload'&&<div className="mb-5 space-y-2"><div className="grid sm:grid-cols-2 gap-2"><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('professional');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='professional'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Estudio profesional · CapCut</button><button type="button" disabled={isProcessing} onClick={()=>{setUploadMode('local');setErrorMsg('');}} className={'rounded-xl border p-3 text-sm font-bold '+(uploadMode==='local'?'bg-fuchsia-600 border-fuchsia-400 text-white':'bg-white/5 border-white/15 text-slate-300')}>Recorte local · Experimental</button></div><p className="text-xs text-slate-300">{uploadMode==='professional'?'Subtítulos dinámicos, selección por IA, cantidad y duración de clips. Puede generar cargos de API.':'Recorte por actividad sonora sin API de pago; consume recursos del servidor.'}</p></div>}
             {(inputMode==='link'||uploadMode==='professional')&&<>
             <div className="grid md:grid-cols-2 gap-6 mb-6">
@@ -1321,7 +1322,7 @@ const baseApi = 'https://jonycliprd-backend-production.up.railway.app';
                       type="text"
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="Pega aquí el enlace de YouTube, Kick, Twitch, TikTok o Facebook..."
+                      aria-label="Enlace de video normal" placeholder="Pega aquí el enlace de un video normal de YouTube, Kick, Twitch, TikTok o Facebook..."
                       className="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
                     />
                   </div>
